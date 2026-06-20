@@ -20,6 +20,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Approval request not found' }, { status: 404 });
     }
 
+    if (approval.status === 'REJECTED') {
+      return NextResponse.json({
+        success: true,
+        approvalStatus: 'REJECTED',
+        alreadyProcessed: true
+      });
+    }
+
     if (approval.status !== 'PENDING') {
       return NextResponse.json({ error: 'Approval request is already processed' }, { status: 400 });
     }
