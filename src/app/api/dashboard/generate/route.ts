@@ -281,7 +281,7 @@ export async function POST() {
     const statuses: Array<'COMPLETED' | 'DELAYED' | 'PENDING'> = ['COMPLETED', 'DELAYED', 'PENDING'];
     for (let i = 0; i < 44; i++) {
       const customer: any = customerList[Math.floor(Math.random() * customerList.length)];
-      const orderNumber = `ORD-${Math.floor(Math.random() * 9000 + 2000)}`;
+      const orderNumber = `ORD-${2000 + i}`;
       const status = statuses[Math.floor(Math.random() * statuses.length)];
       
       // Select 1 to 2 random products for the order
