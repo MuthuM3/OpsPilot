@@ -1,0 +1,178 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  DELAYED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ApprovalType {
+  INVENTORY_UPDATE
+  REFUND_REQUEST
+  DISCOUNT_CREATION
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ExecutionStatus {
+  PENDING
+  IN_PROGRESS
+  SUCCESS
+  FAILED
+}
+
+enum EventType {
+  INFO
+  WARNING
+  SUCCESS
+  ERROR
+}
+
+model Product {
+  id          String      @id @default(uuid())
+  sku         String      @unique
+  name        String
+  description String?
+  price       Decimal     @db.Decimal(10, 2)
+  inventory   Int         @default(0)
+  category    String?
+  supplier    String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+  tickets   Ticket[]
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  orderNumber String      @unique
+  customerId  String
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal     @db.Decimal(10, 2)
+  currency    String      @default("INR")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  items       OrderItem[]
+  refunds     Refund[]
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Decimal  @db.Decimal(10, 2)
+}
+
+model Ticket {
+  id           String         @id @default(uuid())
+  ticketNumber String         @unique
+  customerId   String
+  customer     Customer       @relation(fields: [customerId], references: [id])
+  subject      String
+  description  String
+  status       TicketStatus   @default(OPEN)
+  priority     TicketPriority @default(LOW)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Refund {
+  id              String         @id @default(uuid())
+  orderId         String
+  order           Order          @relation(fields: [orderId], references: [id])
+  amount          Decimal        @db.Decimal(10, 2)
+  reason          String
+  status          ApprovalStatus @default(PENDING)
+  riskScore       Float          @default(0.0)
+  riskExplanation String?
+  approvalId      String?        @unique
+  approval        Approval?      @relation(fields: [approvalId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model Approval {
+  id          String         @id @default(uuid())
+  type        ApprovalType
+  status      ApprovalStatus @default(PENDING)
+  requestedBy String         @default("system")
+  approvedBy  String?
+  reason      String?
+  metadata    Json
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  execution   Execution?
+  refund      Refund?
+}
+
+model Execution {
+  id          String          @id @default(uuid())
+  approvalId  String?         @unique
+  approval    Approval?       @relation(fields: [approvalId], references: [id])
+  type        ApprovalType
+  status      ExecutionStatus @default(PENDING)
+  startedAt   DateTime        @default(now())
+  completedAt DateTime?
+  events      ExecutionEvent[]
+  createdAt   DateTime        @default(now())
+}
+
+model ExecutionEvent {
+  id          String    @id @default(uuid())
+  executionId String
+  execution   Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  message     String
+  type        EventType @default(INFO)
+  timestamp   DateTime  @default(now())
+}
+
+model InventoryUpload {
+  id        String   @id @default(uuid())
+  filename  String
+  status    String   @default("PENDING") // PENDING, MAPPED, APPROVED, APPLIED, FAILED
+  headers   String[]
+  mapping   Json?
+  rowCount  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

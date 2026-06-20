@@ -1,0 +1,217 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Shield, Sparkles, Activity, AlertTriangle, ChevronRight, ChevronLeft, RefreshCw } from 'lucide-react';
+import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query';
+
+export default function CopilotPanel() {
+  const queryClient = useQueryClient();
+  const [isOpen, setIsOpen] = useState(true);
+  const [revenue, setRevenue] = useState(84000);
+  const [orders, setOrders] = useState(142);
+  const [lowStock, setLowStock] = useState(8);
+
+  // Fetch real-time dashboard telemetry
+  const { data } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: async () => {
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) throw new Error('Failed to fetch dashboard telemetry');
+      return res.json();
+    },
+    refetchInterval: 3000,
+  });
+
+  const dbOrders = data?.metrics?.ordersCount || 0;
+  const dbRefunds = data?.metrics?.refundsCount || 0;
+  const dbPendingApprovals = data?.metrics?.pendingApprovalsCount || 0;
+  const dbLowStock = data?.metrics?.lowStockCount || 0;
+
+  // Compute live values anchored to DB status but fluctuating to feel alive
+  const ordersToday = 142 + dbOrders;
+  const refundsToday = 3 + dbRefunds;
+  const pendingApprovalsToday = dbPendingApprovals;
+  const lowStockToday = 8 + dbLowStock;
+  const revenueToday = 84000 + (dbOrders * 1250) + (revenue - 84000);
+
+  // Fluctuate stats slightly to make the panel feel alive in real time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRevenue(r => r + Math.floor(Math.random() * 250) - 80);
+      if (Math.random() > 0.7) {
+        setOrders(o => o + 1);
+      }
+      if (Math.random() > 0.9) {
+        setLowStock(l => Math.max(5, l + Math.floor(Math.random() * 3) - 1));
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Demo Data Generator endpoint trigger
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/dashboard/generate', { method: 'POST' });
+      if (!res.ok) throw new Error('Failed to generate mock data');
+      return res.json();
+    },
+    onSuccess: () => {
+      // Invalidate queries to reload dashboard, orders, inventory instantly!
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
+      
+      // Bump local states in the copilot panel
+      setOrders(prev => prev + 50);
+      setRevenue(prev => prev + 18500);
+      alert('⚡ Demo Store Data Generated successfully! 50 new orders, 10 refunds, and 5 pending approvals added.');
+    },
+    onError: (err: any) => {
+      alert(`Error generating store data: ${err.message}`);
+    }
+  });
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        className="h-full w-10 border-l border-zinc-800 bg-[#090d16] flex flex-col items-center py-6 gap-6 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 cursor-pointer"
+        title="Open Business Copilot Panel"
+      >
+        <ChevronLeft className="w-4 h-4 text-purple-400" />
+        <span className="vertical-rl text-[9px] font-bold uppercase tracking-widest select-none origin-center rotate-180">
+          Business Copilot
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="h-full w-64 border-l border-zinc-800 bg-[#0b0f19] flex flex-col shrink-0 animate-in slide-in-from-right duration-200">
+      {/* Panel Header */}
+      <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-950/20 h-16 shrink-0">
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4 text-purple-400 shrink-0" />
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300 block">
+              Business Copilot
+            </span>
+            <span className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider">
+              Real-Time telemetry
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={() => setIsOpen(false)}
+          className="p-1 rounded hover:bg-zinc-850 text-zinc-400 hover:text-zinc-200 transition-colors"
+          title="Collapse Panel"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        {/* System Health */}
+        <div className="p-3 rounded-xl border border-zinc-800 bg-zinc-950/30 space-y-2">
+          <div className="flex justify-between items-center text-[10px]">
+            <span className="text-zinc-500">Store Health:</span>
+            <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold text-[8px] uppercase tracking-wide">
+              Good
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-[10px]">
+            <span className="text-zinc-500">Autonomous Swarm:</span>
+            <span className="text-purple-400 font-bold text-[9px] animate-pulse">
+              ● MONITORING
+            </span>
+          </div>
+        </div>
+
+        {/* Real-time Telemetry Metrics */}
+        <div className="space-y-3">
+          <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 block px-1">
+            Business Context
+          </span>
+
+          <div className="p-3.5 rounded-xl bg-zinc-950/20 border border-zinc-800/50 space-y-2 text-[10px] text-zinc-300">
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-500">Orders Today</span>
+              <span className="font-bold text-zinc-200">{ordersToday}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-500">Refunds Today</span>
+              <span className="font-bold text-rose-400">{refundsToday}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-500">Pending Approvals</span>
+              <span className="font-bold text-purple-400">{pendingApprovalsToday}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-500">Low Stock Products</span>
+              <span className="font-bold text-amber-400">{lowStockToday}</span>
+            </div>
+            <div className="border-t border-zinc-800/40 my-1 pt-2 flex justify-between items-center text-[11px]">
+              <span className="text-zinc-400 font-medium">Revenue Today</span>
+              <span className="font-bold text-emerald-400">₹{Math.floor(revenueToday).toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Risk Alerts */}
+        <div className="space-y-2">
+          <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 block px-1">
+            Active Risk Alerts
+          </span>
+          <div className="space-y-1.5 text-[10px]">
+            <div className="p-2.5 rounded-lg border border-rose-500/20 bg-rose-500/5 text-rose-400 flex items-start gap-2 leading-relaxed">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-zinc-200 block text-[9px]">High Refund Rate</span>
+                <span>Alice Smith submitted 3 refunds in last 24h.</span>
+              </div>
+            </div>
+            <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-400 flex items-start gap-2 leading-relaxed">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-zinc-200 block text-[9px]">Inventory Mismatch</span>
+                <span>Supplier CSV reports price variations on 4 items.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Governance Insight */}
+        <div className="p-3 rounded-xl border border-purple-500/10 bg-purple-500/5 space-y-2 text-[10px]">
+          <div className="flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+            <span className="font-bold text-purple-300">Policy Rules</span>
+          </div>
+          <ul className="space-y-1 text-[9px] text-zinc-400 list-disc pl-3 leading-relaxed">
+            <li>Single refund ceiling threshold: ₹10,000</li>
+            <li>Coupons above 20% discount require manager</li>
+            <li>CSV upload updates require header approval</li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Seeding Controls */}
+      <div className="p-4 border-t border-zinc-800 bg-zinc-950/20 shrink-0">
+        <button
+          onClick={() => generateMutation.mutate()}
+          disabled={generateMutation.isPending}
+          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-sky-500 hover:from-purple-500 hover:to-sky-400 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 shadow-md shadow-purple-600/10 cursor-pointer disabled:opacity-50"
+        >
+          {generateMutation.isPending ? (
+            <RefreshCw className="w-4 h-4 animate-spin" />
+          ) : (
+            <Sparkles className="w-4 h-4" />
+          )}
+          <span>⚡ Generate Store Data</span>
+        </button>
+      </div>
+    </div>
+  );
+}
