@@ -3,6 +3,7 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 import Sidebar from "@/components/Sidebar";
 import ChatInterface from "@/components/chat/ChatInterface";
+import CopilotPanel from "@/components/CopilotPanel";
 
 export const metadata: Metadata = {
   title: "OpsPilot - AI Operations Agent for E-Commerce Teams",
@@ -29,6 +30,9 @@ export default function RootLayout({
             <main className="flex-1 h-full overflow-y-auto bg-[#090d16] relative">
               {children}
             </main>
+
+            {/* Business Copilot Panel (Far Right) */}
+            <CopilotPanel />
           </div>
         </Providers>
       </body>

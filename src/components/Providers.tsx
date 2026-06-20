@@ -14,6 +14,7 @@ export interface ChatSession {
 const DEFAULT_CHATS: ChatSession[] = [
   { id: 'refund-flow', title: 'Refund Order #ORD-1024', mode: 'agent' },
   { id: 'inventory-flow', title: 'Inventory Normalization', mode: 'agent' },
+  { id: 'discount-flow', title: 'Create Promo Code', mode: 'agent' },
   { id: 'support-flow', title: 'Shipment Status Query', mode: 'ask' },
 ];
 
@@ -31,6 +32,8 @@ interface WorkspaceContextProps {
   createChat: () => string;
   deleteChat: (id: string) => void;
   renameChat: (id: string, title: string) => void;
+  chatInputPreset: string;
+  setChatInputPreset: (preset: string) => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextProps | undefined>(undefined);
@@ -55,6 +58,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [activeChatId, setActiveChatId] = useState('refund-flow');
   const [chatMode, setChatMode] = useState<'ask' | 'agent'>('agent');
   const [isChatOpen, setIsChatOpen] = useState(true);
+  const [chatInputPreset, setChatInputPreset] = useState('');
 
   // Conversation list — the single source of truth shared by the Sidebar
   // (history) and the chat panel. Persisted so new chats survive a refresh.
@@ -158,7 +162,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         chatList,
         createChat,
         deleteChat,
-        renameChat
+        renameChat,
+        chatInputPreset,
+        setChatInputPreset
       }}>
         {children}
 

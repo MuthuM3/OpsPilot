@@ -100,6 +100,7 @@ export default function ChatInterface() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   const { 
     activeTab, 
@@ -112,7 +113,9 @@ export default function ChatInterface() {
     setIsChatOpen,
     showToast,
     chatList,
-    renameChat
+    renameChat,
+    chatInputPreset,
+    setChatInputPreset
   } = useWorkspace();
   
   const [width, setWidth] = useState(420);
@@ -163,6 +166,16 @@ You can upload supplier CSV files directly in chat to normalize prices and stock
 3. AI will map the headers and preview the database updates inline.`
       }
     ],
+    'discount-flow': [
+      {
+        role: 'assistant',
+        content: `Welcome to the **Campaign Promotions Module**.
+
+You can create promotional codes and manage coupon rules under manager governance checks:
+* Try creating a standard discount: **"Create discount code VIP10 with 10% discount"** (Safe threshold, auto-deploys!).
+* Try requesting a high discount: **"Create discount code promo50 with 50% discount"** (Requires manager sign-off via Approvals Hub!).`
+      }
+    ],
     'support-flow': [
       {
         role: 'assistant',
@@ -174,6 +187,21 @@ You can ask me questions about shipments, products, or tickets:
       }
     ]
   });
+
+  // Automatically load presets from scenario play clicks
+  useEffect(() => {
+    if (chatInputPreset) {
+      setInput(chatInputPreset);
+      setChatInputPreset('');
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.style.height = 'auto';
+          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 128)}px`;
+        }
+      }, 50);
+    }
+  }, [chatInputPreset, setChatInputPreset]);
 
   const messages = chatSessions[activeChatId] || [];
 
@@ -1321,6 +1349,7 @@ What would you like to do?`,
   const currentSuggestions = ({
     'refund-flow': ['Refund Order #ORD-1024', 'Create discount code SORRY25', 'Which products are causing most refunds?'],
     'inventory-flow': ['List database products', 'Show supplier mappings'],
+    'discount-flow': ['Create discount code promo50 with 50% discount', 'Create discount code VIP10 with 10% discount', 'Show active discount campaigns'],
     'support-flow': ['Which shipments are delayed?', 'Show Sarah\'s support tickets']
   } as Record<string, string[]>)[activeChatId] || ['Which shipments are delayed?', 'Which products are causing most refunds?', 'Show inventory status'];
 
@@ -1370,7 +1399,7 @@ What would you like to do?`,
       </div>
 
       {/* Business Context Panel */}
-      {!isStreaming && ['refund-flow', 'inventory-flow', 'support-flow'].includes(activeChatId) && (
+      {!isStreaming && ['refund-flow', 'inventory-flow', 'discount-flow', 'support-flow'].includes(activeChatId) && (
         <div className="px-4 py-2 border-b border-zinc-800/50 bg-[#0c1220]/45 flex items-center justify-between text-[10px] shrink-0 animate-in slide-in-from-top-1">
           {activeChatId === 'refund-flow' && (
             <>
@@ -1401,6 +1430,22 @@ What would you like to do?`,
                 <span>Integrations: <strong>Shopify</strong></span>
                 <span>•</span>
                 <span>Format: <strong>CSV</strong></span>
+              </div>
+            </>
+          )}
+          {activeChatId === 'discount-flow' && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+                <span className="text-zinc-400">Context: <strong>Promotions Agent</strong></span>
+                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px]">Active</span>
+              </div>
+              <div className="flex items-center gap-3 text-zinc-500">
+                <span>Safe Threshold: <strong>20%</strong></span>
+                <span>•</span>
+                <span>Active Campaigns: <strong>3</strong></span>
+                <span>•</span>
+                <span>Integrations: <strong>Shopify, Stripe</strong></span>
               </div>
             </>
           )}
@@ -1553,6 +1598,7 @@ What would you like to do?`,
           className="flex-1 relative flex items-end"
         >
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {

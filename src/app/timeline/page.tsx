@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, ShieldCheck, CheckCircle2, AlertCircle, Info, Database, ShoppingBag, ArrowUpRight } from 'lucide-react';
+import { Clock, ShieldCheck, CheckCircle2, AlertCircle, Info, Database, ShoppingBag, ArrowUpRight, Tag } from 'lucide-react';
 import Link from 'next/link';
 
 interface ExecutionEvent {
@@ -14,7 +14,7 @@ interface ExecutionEvent {
 
 interface Execution {
   id: string;
-  type: 'INVENTORY_UPDATE' | 'REFUND_REQUEST';
+  type: 'INVENTORY_UPDATE' | 'REFUND_REQUEST' | 'DISCOUNT_CREATION';
   status: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
   startedAt: string;
   completedAt: string | null;
@@ -93,13 +93,25 @@ export default function TimelinePage() {
                     <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${
                       exec.type === 'INVENTORY_UPDATE'
                         ? 'bg-purple-500/10 border-purple-500/20 text-purple-400'
+                        : exec.type === 'DISCOUNT_CREATION'
+                        ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
                         : 'bg-sky-500/10 border-sky-500/20 text-sky-400'
                     }`}>
-                      {exec.type === 'INVENTORY_UPDATE' ? <Database className="w-4.5 h-4.5" /> : <ShoppingBag className="w-4.5 h-4.5" />}
+                      {exec.type === 'INVENTORY_UPDATE' ? (
+                        <Database className="w-4.5 h-4.5" />
+                      ) : exec.type === 'DISCOUNT_CREATION' ? (
+                        <Tag className="w-4.5 h-4.5" />
+                      ) : (
+                        <ShoppingBag className="w-4.5 h-4.5" />
+                      )}
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-zinc-200">
-                        {exec.type === 'INVENTORY_UPDATE' ? 'Inventory Synchronization' : 'Refund Transaction Settlement'}
+                        {exec.type === 'INVENTORY_UPDATE' 
+                          ? 'Inventory Synchronization' 
+                          : exec.type === 'DISCOUNT_CREATION'
+                          ? 'Promo Discount Synchronization'
+                          : 'Refund Transaction Settlement'}
                       </h4>
                       <div className="text-[10px] text-zinc-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
                         <span>ID: <span className="font-mono text-zinc-400">{exec.id.substring(0, 8)}...</span></span>

@@ -2,6 +2,49 @@ import { OpenAI } from 'openai';
 import { prisma } from '../db/prisma';
 import { evaluateRefundRisk } from '../approvals/engine';
 
+// ----------------------------------------------------
+// Endpoint Health Cache
+// Avoids repeated DNS timeouts when the custom base URL is unreachable.
+// After the first connection failure the endpoint is marked "down" for
+// ENDPOINT_CACHE_TTL ms. Requests within that window immediately fall
+// through to the local mock engine instead of waiting on a DNS timeout.
+// ----------------------------------------------------
+const ENDPOINT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+let _endpointDown = false;
+let _endpointDownAt = 0;
+
+function isEndpointDown(): boolean {
+  if (!_endpointDown) return false;
+  if (Date.now() - _endpointDownAt > ENDPOINT_CACHE_TTL) {
+    // TTL expired — retry the real endpoint
+    _endpointDown = false;
+    return false;
+  }
+  return true;
+}
+
+function markEndpointDown(err: any): void {
+  const isNetworkError =
+    err?.code === 'ENOTFOUND' ||
+    err?.code === 'ECONNREFUSED' ||
+    err?.code === 'ECONNRESET' ||
+    err?.cause?.code === 'ENOTFOUND' ||
+    err?.cause?.code === 'ECONNREFUSED' ||
+    err?.cause?.cause?.code === 'ENOTFOUND' ||
+    err?.cause?.cause?.code === 'ECONNREFUSED' ||
+    String(err?.message ?? '').includes('getaddrinfo') ||
+    String(err?.message ?? '').includes('Connection error');
+
+  if (isNetworkError) {
+    _endpointDown = true;
+    _endpointDownAt = Date.now();
+    const baseURL = process.env.OPENAI_API_BASE_URL ?? 'unknown';
+    console.warn(`[OpsPilot] LLM endpoint unreachable (${baseURL}). Falling back to local mock for ${ENDPOINT_CACHE_TTL / 60000} min.`);
+  } else {
+    console.error('[OpsPilot] LLM call failed:', err?.message ?? err);
+  }
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -420,21 +463,84 @@ export function selectBusinessTool(queryText: string, ctx: ConversationContext):
 // 2b. Query Planner — distinguishes LOOKUP / ANALYSIS / ACTION / EXPLORATION
 // ----------------------------------------------------
 export type QueryType = 'lookup' | 'analysis' | 'action' | 'exploration';
+export type Timeframe = 'today' | 'yesterday' | 'last_7_days' | 'last_30_days' | 'this_month' | 'all';
 
 export interface QueryPlan {
   queryType: QueryType;
   lookupTarget: 'shipments' | 'refunds' | 'inventory' | 'orders' | 'customers' | null;
   analyticsTool: string | null;
-  filters: { status?: string; limit?: number };
+  filters: { status?: string; limit?: number; timeframe?: Timeframe };
+}
+
+// ----------------------------------------------------
+// Timeframe layer — shared by the LLM tools AND the offline planner so that
+// parameter handling ("today", "last week") is correct regardless of path.
+// A timeframe is a createdAt lower-bound; 'all' means no date filter.
+// ----------------------------------------------------
+function timeframeStart(tf: Timeframe): Date | null {
+  const now = new Date();
+  switch (tf) {
+    case 'today': { const d = new Date(now); d.setHours(0, 0, 0, 0); return d; }
+    case 'yesterday': { const d = new Date(now); d.setDate(d.getDate() - 1); d.setHours(0, 0, 0, 0); return d; }
+    case 'last_7_days': return new Date(now.getTime() - 7 * 86_400_000);
+    case 'last_30_days': return new Date(now.getTime() - 30 * 86_400_000);
+    case 'this_month': return new Date(now.getFullYear(), now.getMonth(), 1);
+    case 'all':
+    default: return null;
+  }
+}
+
+function timeframeLabel(tf: Timeframe): string {
+  return {
+    today: 'today',
+    yesterday: 'yesterday',
+    last_7_days: 'the last 7 days',
+    last_30_days: 'the last 30 days',
+    this_month: 'this month',
+    all: 'all time'
+  }[tf];
+}
+
+/** Extract a timeframe from free text — the offline equivalent of what the
+ *  model does natively when it fills a tool's `timeframe` parameter. */
+function extractTimeframe(q: string): Timeframe {
+  if (/\b(today|right now|currently|at the moment|so far)\b/i.test(q)) return 'today';
+  if (/\byesterday\b/i.test(q)) return 'yesterday';
+  if (/\b(this week|past week|last week|last 7 days|past 7 days|recent)\b/i.test(q)) return 'last_7_days';
+  if (/\bthis month\b/i.test(q)) return 'this_month';
+  if (/\b(last month|past month|last 30 days|past 30 days|this quarter)\b/i.test(q)) return 'last_30_days';
+  return 'all';
 }
 
 // Lookup trigger words: the user wants to *see* records, not understand them.
-const LOOKUP_VERBS = /\b(list|show|give me|display|fetch|get|find|what are|which orders|which shipments|all the|all delayed|see all|tell me about)\b/i;
-// Analysis trigger words: the user wants to *understand* something.
-const ANALYSIS_VERBS = /\b(why|analyze|analysis|trend|cause|reason|explain|compare|breakdown|how many|impact|insight|diagnose)\b/i;
+const LOOKUP_VERBS = /\b(list|show|give me|display|fetch|get|find|what are|what's|whats|what is|which|all the|all delayed|see all|tell me about|pull up|any)\b/i;
+// Analysis trigger words: the user wants to *understand* something, not just see rows.
+const ANALYSIS_VERBS = /\b(why|analy[sz]e|analysis|trend|cause|root cause|reason|explain|compare|breakdown|how many|impact|insight|diagnose|driv(?:e|ing|er)|spik(?:e|ed|ing)|surg(?:e|ing))\b/i;
+
+// Domain synonyms — maps loose phrasing onto a data domain. Order matters:
+// the most specific signals are checked first.
+function detectDomain(q: string): QueryPlan['lookupTarget'] | 'revenue' {
+  if (/\b(delay|delayed|shipment|shipping|transit|stuck|overdue|backed up|back-?logged|not shipped|unshipped|awaiting dispatch|late|carrier|logistics|fulfil?ment)\b/i.test(q)) return 'shipments';
+  if (/\b(refund|refunds|return|returns|chargeback)\b/i.test(q)) return 'refunds';
+  if (/\b(revenue|sales|turnover|money|financial|aov|gmv)\b/i.test(q)) return 'revenue';
+  if (/\b(inventory|stock|sku|restock|out of stock|low stock|product|catalog)\b/i.test(q)) return 'inventory';
+  if (/\b(customer|customers|vip|buyer|shopper)\b/i.test(q)) return 'customers';
+  if (/\b(order|orders|invoice|purchase)\b/i.test(q)) return 'orders';
+  return null;
+}
+
+const ANALYTICS_TOOL: Record<string, string> = {
+  shipments: 'shipmentAnalytics',
+  refunds: 'refundAnalytics',
+  inventory: 'inventoryAnalytics',
+  customers: 'customerAnalytics',
+  revenue: 'revenueAnalytics',
+  orders: 'revenueAnalytics'
+};
 
 export function planQuery(queryText: string, ctx: ConversationContext): QueryPlan {
   const q = queryText.toLowerCase().trim();
+  const timeframe = extractTimeframe(q);
 
   // ── ACTION: write operations ──────────────────────────────────────────────
   const isRefundAction =
@@ -447,91 +553,87 @@ export function planQuery(queryText: string, ctx: ConversationContext): QueryPla
     /\b(create|make|generate|add|new|apply|code)\b/i.test(q);
 
   if (isRefundAction || isDiscountAction) {
-    return { queryType: 'action', lookupTarget: null, analyticsTool: null, filters: {} };
+    return { queryType: 'action', lookupTarget: null, analyticsTool: null, filters: { timeframe } };
+  }
+
+  const domain = detectDomain(q);
+  const wantsUnderstanding = ANALYSIS_VERBS.test(q);
+  const isLookup = LOOKUP_VERBS.test(q);
+
+  // ── ANALYSIS wins when the user wants to understand ("show me WHY ... SPIKED")
+  if (domain && wantsUnderstanding) {
+    if ((domain as string) === 'shipments') ctx.activeAnalysis = 'shipment_delay';
+    return { queryType: 'analysis', lookupTarget: null, analyticsTool: ANALYTICS_TOOL[domain], filters: { timeframe } };
   }
 
   // ── LOOKUP: the user wants actual records ─────────────────────────────────
-  const isLookup = LOOKUP_VERBS.test(q);
-
-  if (isLookup) {
-    if (/delay|shipment|transit|in.transit/i.test(q)) {
+  if (domain && (isLookup || domain === 'shipments')) {
+    if (domain === 'revenue') {
+      // "show revenue" has no record list — answer it analytically.
+      return { queryType: 'analysis', lookupTarget: null, analyticsTool: 'revenueAnalytics', filters: { timeframe } };
+    }
+    if (domain === 'shipments') {
       ctx.activeAnalysis = 'shipment_delay';
-      return { queryType: 'lookup', lookupTarget: 'shipments', analyticsTool: null, filters: { status: 'DELAYED' } };
+      return { queryType: 'lookup', lookupTarget: 'shipments', analyticsTool: null, filters: { status: 'DELAYED', timeframe } };
     }
-    if (/refund|return/i.test(q)) {
-      return { queryType: 'lookup', lookupTarget: 'refunds', analyticsTool: null, filters: {} };
-    }
-    if (/inventory|stock|product|sku/i.test(q)) {
-      return { queryType: 'lookup', lookupTarget: 'inventory', analyticsTool: null, filters: {} };
-    }
-    if (/order/i.test(q)) {
+    if (domain === 'orders') {
       const status = /pending/i.test(q) ? 'PENDING'
         : /complet/i.test(q) ? 'COMPLETED'
         : /cancel/i.test(q) ? 'CANCELLED'
+        : /refund/i.test(q) ? 'REFUNDED'
         : undefined;
-      return { queryType: 'lookup', lookupTarget: 'orders', analyticsTool: null, filters: { status } };
+      return { queryType: 'lookup', lookupTarget: 'orders', analyticsTool: null, filters: { status, timeframe } };
     }
-    if (/customer|vip/i.test(q)) {
-      return { queryType: 'lookup', lookupTarget: 'customers', analyticsTool: null, filters: {} };
-    }
+    return { queryType: 'lookup', lookupTarget: domain, analyticsTool: null, filters: { timeframe } };
   }
 
-  // ── ANALYSIS: the user wants insights / explanations ─────────────────────
-  const isAnalysis = ANALYSIS_VERBS.test(q);
-
-  if (isAnalysis || /delay|shipment|carrier|logistics/i.test(q)) {
-    if (/delay|shipment|carrier|logistics/i.test(q)) {
-      ctx.activeAnalysis = 'shipment_delay';
-      return { queryType: 'analysis', lookupTarget: null, analyticsTool: 'shipmentAnalytics', filters: {} };
-    }
-    if (/refund|return/i.test(q)) {
-      return { queryType: 'analysis', lookupTarget: null, analyticsTool: 'refundAnalytics', filters: {} };
-    }
-    if (/inventory|stock|sku/i.test(q)) {
-      return { queryType: 'analysis', lookupTarget: null, analyticsTool: 'inventoryAnalytics', filters: {} };
-    }
-    if (/revenue|sales|money|financial/i.test(q)) {
-      return { queryType: 'analysis', lookupTarget: null, analyticsTool: 'revenueAnalytics', filters: {} };
-    }
-    if (/customer|vip/i.test(q)) {
-      return { queryType: 'analysis', lookupTarget: null, analyticsTool: 'customerAnalytics', filters: {} };
-    }
+  // ── ANALYSIS fallback for a bare domain mention ("refund drivers") ─────────
+  if (domain) {
+    if ((domain as string) === 'shipments') ctx.activeAnalysis = 'shipment_delay';
+    return { queryType: 'analysis', lookupTarget: null, analyticsTool: ANALYTICS_TOOL[domain], filters: { timeframe } };
   }
 
   // ── EXPLORATION: open-ended / strategy questions ──────────────────────────
-  return { queryType: 'exploration', lookupTarget: null, analyticsTool: null, filters: {} };
+  return { queryType: 'exploration', lookupTarget: null, analyticsTool: null, filters: { timeframe } };
 }
 
 // ----------------------------------------------------
 // 2c. DB Lookup Tools — fetch actual records
 // ----------------------------------------------------
-async function fetchDelayedShipments(limit = 100) {
+async function fetchDelayedShipments(timeframe: Timeframe = 'all', limit = 100) {
+  const start = timeframeStart(timeframe);
   return prisma.order.findMany({
-    where: { status: 'DELAYED' },
+    where: { status: 'DELAYED', ...(start ? { createdAt: { gte: start } } : {}) },
     include: { customer: true },
     orderBy: { createdAt: 'asc' },
     take: limit
   });
 }
 
-async function fetchRecentRefunds(limit = 50) {
+async function fetchRecentRefunds(timeframe: Timeframe = 'all', limit = 50) {
+  const start = timeframeStart(timeframe);
   return prisma.refund.findMany({
+    where: start ? { createdAt: { gte: start } } : {},
     include: { order: { include: { customer: true } } },
     orderBy: { createdAt: 'desc' },
     take: limit
   });
 }
 
-async function fetchLowStockProducts() {
+async function fetchLowStockProducts(threshold = 20) {
   return prisma.product.findMany({
-    where: { inventory: { lt: 20 } },
+    where: { inventory: { lt: threshold } },
     orderBy: { inventory: 'asc' }
   });
 }
 
-async function fetchOrders(status?: string, limit = 50) {
+async function fetchOrders(status?: string, timeframe: Timeframe = 'all', limit = 50) {
+  const start = timeframeStart(timeframe);
   return prisma.order.findMany({
-    where: status ? { status: status as any } : {},
+    where: {
+      ...(status ? { status: status as any } : {}),
+      ...(start ? { createdAt: { gte: start } } : {})
+    },
     include: { customer: true },
     orderBy: { createdAt: 'desc' },
     take: limit
@@ -600,9 +702,13 @@ async function handleMockChat(
 
     // Delayed shipments
     if (plan.lookupTarget === 'shipments') {
+      const tf = plan.filters.timeframe || 'all';
+      const scope = tf === 'all' ? '' : ` (placed ${timeframeLabel(tf)})`;
       const total = await prisma.order.count();
       if (records.length === 0) {
-        return `Good news — there are no delayed shipments right now. All ${total} orders are moving normally.`;
+        return tf === 'all'
+          ? `Good news — there are no delayed shipments right now. All ${total} orders are moving normally.`
+          : `No delayed shipments ${timeframeLabel(tf)}. Nothing in that window needs attention.`;
       }
       const shown = records.slice(0, 10);
       const remainder = records.length - shown.length;
@@ -610,9 +716,9 @@ async function handleMockChat(
       const oldest = records[0];
       const oldestDays = Math.floor((Date.now() - new Date(oldest.createdAt).getTime()) / 86_400_000);
 
-      return `I pulled up the delayed shipments from the database. Here's what's queued right now:
+      return `I pulled up the delayed shipments${scope} from the database. Here's what's queued:
 
-**${records.length} orders are delayed** out of ${total} total (${pct}% of your active book).
+**${records.length} orders are delayed**${scope} out of ${total} total (${pct}% of your active book).
 
 The oldest one, **${oldest.orderNumber}** for ${oldest.customer?.name}, has been waiting ${oldestDays === 0 ? 'since today' : `${oldestDays} day${oldestDays === 1 ? '' : 's'}`}. Here are the top ones to tackle:
 
@@ -827,6 +933,65 @@ Want me to pull the actual list of delayed orders so you can see who's affected,
 [List delayed shipments] [Why are shipments delayed?]`;
   }
 
+  // Show active discount campaigns
+  if (
+    query.includes('active discount') || 
+    query.includes('active campaign') || 
+    query.includes('list discount') || 
+    query.includes('list campaign') ||
+    query.includes('show discount')
+  ) {
+    const pendingDiscounts = await prisma.approval.findMany({ where: { type: 'DISCOUNT_CREATION', status: 'PENDING' } });
+    const approvedDiscounts = await prisma.approval.findMany({ where: { type: 'DISCOUNT_CREATION', status: 'APPROVED' } });
+    
+    let listText = `Here are the active and pending discount campaigns in our store:
+ 
+1. **VIP10** — 10% OFF · Status: **ACTIVE** · Safe-mode auto-deployment
+2. **SAVE20** — 20% OFF · Status: **ACTIVE** · Safe-mode auto-deployment\n`;
+ 
+    if (approvedDiscounts.length > 0) {
+      approvedDiscounts.forEach((d: any, idx: number) => {
+        const m = d.metadata as any;
+        listText += `${idx + 3}. **${m.code || 'COUPON'}** — ${m.discountPercent}% OFF · Status: **ACTIVE** · Approved by Manager · ${relativeDate(new Date(d.updatedAt))}\n`;
+      });
+    }
+ 
+    if (pendingDiscounts.length > 0) {
+      listText += `\n**Pending Manager Review:**\n`;
+      pendingDiscounts.forEach((d: any) => {
+        const m = d.metadata as any;
+        listText += `- **${m.code || 'COUPON'}** — ${m.discountPercent}% OFF · Status: **PENDING APPROVAL** · Risk score: ${m.riskScore || 65}/100\n`;
+      });
+    } else {
+      listText += `\nNo pending discount approvals in queue.`;
+    }
+ 
+    return `${listText}
+ 
+Want me to create a new promo code, review the safety policy, or go to Approvals Hub?
+ 
+[Create discount code VIPSPECIAL15] [Check discount coupon governance policy]`;
+  }
+ 
+  // Check discount coupon governance policy
+  if (
+    query.includes('governance policy') || 
+    query.includes('coupon policy') || 
+    query.includes('discount policy') ||
+    query.includes('safety policy')
+  ) {
+    return `### AI Governance Policy: Promotional Discounts
+ 
+To protect store revenue and prevent coupon abuse, OpsPilot enforces three guardrails:
+1. **Discount Cap**: Coupons with discount values **under or equal to 20%** are classified as low-risk and will auto-deploy immediately to checkout channels.
+2. **Approval Gate**: Any coupon request exceeding **20% discount** is flagged as high-risk (Risk Score: 65/100) and requires explicit manager approval in the Approvals Hub.
+3. **Execution Sync**: Upon approval, coupon rules are securely provisioned on Shopify and Stripe checkout gateway APIs via background worker executions.
+ 
+Would you like to test these safety gates by creating a coupon now?
+ 
+[Create discount code VIP10 with 10% discount] [Create discount code promo50 with 50% discount]`;
+  }
+
   // Revenue / marketing
   if (query.includes('revenue') || query.includes('sales') || query.includes('sell') || query.includes('marketing') || query.includes('discount')) {
     return `A few things I'd look at to move the needle on revenue:
@@ -872,7 +1037,8 @@ Where do you want to start?
 // ----------------------------------------------------
 // 4. OpenAI Grounded Completion & Route Entry
 // ----------------------------------------------------
-const toolsList = [
+// Read tools are safe in any mode (including Ask/read-only).
+const readTools = [
   {
     type: 'function' as const,
     function: {
@@ -884,12 +1050,52 @@ const toolsList = [
   {
     type: 'function' as const,
     function: {
-      name: 'list_orders',
-      description: 'Retrieve e-commerce orders, optionally filtering by status (e.g. DELAYED, COMPLETED).',
+      name: 'get_orders',
+      description: 'Retrieve e-commerce orders, optionally filtered by status and a timeframe. Use this for "list/show orders".',
       parameters: {
         type: 'object',
         properties: {
-          status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'CANCELLED', 'REFUNDED', 'PARTIALLY_REFUNDED', 'DELAYED'], description: 'Filter by order status' }
+          status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'CANCELLED', 'REFUNDED', 'PARTIALLY_REFUNDED', 'DELAYED'], description: 'Filter by order status' },
+          timeframe: { type: 'string', enum: ['today', 'yesterday', 'last_7_days', 'last_30_days', 'this_month', 'all'], description: 'Restrict to orders placed within this window (default all)' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_shipments',
+      description: 'Retrieve the delayed-shipment backlog (orders in DELAYED status). Use for "delayed shipments", "what is overdue", "stuck orders", optionally scoped by timeframe.',
+      parameters: {
+        type: 'object',
+        properties: {
+          timeframe: { type: 'string', enum: ['today', 'yesterday', 'last_7_days', 'last_30_days', 'this_month', 'all'], description: 'Restrict to delayed orders placed within this window (default all)' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_refunds',
+      description: 'Retrieve refund records with their order and customer, optionally scoped by timeframe. Use for "list refunds", "refunds this week".',
+      parameters: {
+        type: 'object',
+        properties: {
+          timeframe: { type: 'string', enum: ['today', 'yesterday', 'last_7_days', 'last_30_days', 'this_month', 'all'], description: 'Restrict to refunds created within this window (default all)' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_inventory',
+      description: 'Retrieve products at or below a stock threshold. Use for "low stock", "what needs restocking".',
+      parameters: {
+        type: 'object',
+        properties: {
+          threshold: { type: 'number', description: 'Stock level at/under which to flag a product (default 20)' }
         }
       }
     }
@@ -909,7 +1115,11 @@ const toolsList = [
       description: 'Retrieve a list of all active governance approval requests that are currently PENDING.',
       parameters: { type: 'object', properties: {} }
     }
-  },
+  }
+];
+
+// Write tools mutate the store and are only offered in Agent mode.
+const writeTools = [
   {
     type: 'function' as const,
     function: {
@@ -944,6 +1154,12 @@ const toolsList = [
   }
 ];
 
+// Ask mode → reads only. Agent mode → reads + writes.
+const toolsList = [...readTools, ...writeTools];
+function toolsForMode(mode: 'ask' | 'agent') {
+  return mode === 'agent' ? toolsList : readTools;
+}
+
 // Gather conversation context, classify intent, run the query planner, fetch
 // real DB records for LOOKUP queries, and compile business context for ANALYSIS.
 // This is the single source of truth shared by both the buffered and streaming paths.
@@ -965,10 +1181,11 @@ async function gatherChatContext(messages: ChatMessage[]) {
   let lookupData: any[] | undefined;
   if (plan.queryType === 'lookup') {
     try {
-      if (plan.lookupTarget === 'shipments') lookupData = await fetchDelayedShipments();
-      else if (plan.lookupTarget === 'refunds') lookupData = await fetchRecentRefunds();
+      const tf = plan.filters.timeframe || 'all';
+      if (plan.lookupTarget === 'shipments') lookupData = await fetchDelayedShipments(tf);
+      else if (plan.lookupTarget === 'refunds') lookupData = await fetchRecentRefunds(tf);
       else if (plan.lookupTarget === 'inventory') lookupData = await fetchLowStockProducts();
-      else if (plan.lookupTarget === 'orders') lookupData = await fetchOrders(plan.filters.status);
+      else if (plan.lookupTarget === 'orders') lookupData = await fetchOrders(plan.filters.status, tf);
       else if (plan.lookupTarget === 'customers') lookupData = await fetchCustomers();
     } catch (err) {
       console.error('Lookup fetch failed:', err);
@@ -1051,6 +1268,11 @@ function buildSystemMessage(
     content: `You are OpsPilot, an AI operations assistant for an e-commerce business.
 You have real-time access to the store database through tool calls.
 
+Fetching data — ALWAYS call a tool, never guess from memory:
+- Delayed/stuck/overdue shipments → get_shipments(timeframe). Use timeframe="today" for "today", "last_7_days" for "this week", etc. Default "all" = the full backlog.
+- Refunds/returns → get_refunds(timeframe). Orders → get_orders(status, timeframe). Low/out-of-stock → get_inventory(threshold). Catalog → list_products. Tickets → list_tickets. Pending approvals → list_pending_approvals.
+- Extract the timeframe and any status filter from the user's wording and pass them as parameters — do not ignore them.
+
 How to respond:
 - Be direct and conversational — like a sharp analyst talking to a colleague, not a report generator.
 - Do NOT use big headers (###, ####), marketing phrases like "Intent Match: 96%", or template-style formatting.
@@ -1084,12 +1306,20 @@ async function executeToolCall(
   if (functionName === 'list_products') {
     const products = await prisma.product.findMany({});
     output = JSON.stringify(products);
-  } else if (functionName === 'list_orders') {
-    const orders = await prisma.order.findMany({
-      where: args.status ? { status: args.status } : {},
-      include: { customer: true }
-    });
-    output = JSON.stringify(orders);
+  } else if (functionName === 'get_orders' || functionName === 'list_orders') {
+    const orders = await fetchOrders(args.status, (args.timeframe as Timeframe) || 'all');
+    output = JSON.stringify({ count: orders.length, timeframe: args.timeframe || 'all', orders });
+  } else if (functionName === 'get_shipments') {
+    const delayed = await fetchDelayedShipments((args.timeframe as Timeframe) || 'all');
+    const totalOrders = await prisma.order.count();
+    output = JSON.stringify({ delayed_count: delayed.length, total_orders: totalOrders, timeframe: args.timeframe || 'all', shipments: delayed });
+  } else if (functionName === 'get_refunds') {
+    const refunds = await fetchRecentRefunds((args.timeframe as Timeframe) || 'all');
+    const totalValue = refunds.reduce((s, r) => s + Number(r.amount), 0);
+    output = JSON.stringify({ count: refunds.length, total_value: totalValue, timeframe: args.timeframe || 'all', refunds });
+  } else if (functionName === 'get_inventory') {
+    const products = await fetchLowStockProducts(typeof args.threshold === 'number' ? args.threshold : 20);
+    output = JSON.stringify({ low_stock_count: products.length, threshold: args.threshold || 20, products });
   } else if (functionName === 'list_tickets') {
     const tickets = await prisma.ticket.findMany({ include: { customer: true } });
     output = JSON.stringify(tickets);
@@ -1284,18 +1514,21 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
 
   const { lastMessage, conversationContext, selectedTool, detectedIntent, businessContext, contextPack } = await gatherChatContext(messages);
 
-  // Fallback to mock if neither API Key nor custom Base URL is set
+  // Fallback to mock if neither API Key nor custom Base URL is set, or if the
+  // endpoint was recently found to be unreachable.
   const hasApiKey = apiKey && apiKey.trim() !== '';
   const hasBaseUrl = baseURL && baseURL.trim() !== '';
 
-  if (!hasApiKey && !hasBaseUrl) {
+  if ((!hasApiKey && !hasBaseUrl) || isEndpointDown()) {
     return handleMockChat(lastMessage, mode, contextPack);
   }
 
   try {
     const openai = new OpenAI({
       apiKey: apiKey || 'dummy-key',
-      baseURL: baseURL || undefined
+      baseURL: baseURL || undefined,
+      timeout: 8000,   // fail fast — 8 s hard cap
+      maxRetries: 0    // no SDK-level retries; we handle fallback ourselves
     });
     
     // Inject the structured conversation memory + real database figures directly in system prompt
@@ -1307,8 +1540,8 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
     const response = await openai.chat.completions.create({
       model: modelName,
       messages: apiMessages.map(m => ({ role: m.role, content: m.content })),
-      tools: mode === 'agent' ? toolsList : undefined,
-      tool_choice: mode === 'agent' ? 'auto' : undefined,
+      tools: toolsForMode(mode),       // reads in Ask mode, reads + writes in Agent mode
+      tool_choice: 'auto',
       temperature: 0.2
     });
 
@@ -1356,7 +1589,7 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
 
     return responseMessage.content || 'Error processing response.';
   } catch (err: any) {
-    console.error('OpenAI processing failed, falling back to mock:', err);
+    markEndpointDown(err);
     return handleMockChat(lastMessage, mode, contextPack);
   }
 }
@@ -1377,8 +1610,9 @@ export async function* streamChat(
   const hasApiKey = apiKey && apiKey.trim() !== '';
   const hasBaseUrl = baseURL && baseURL.trim() !== '';
 
-  // No provider configured → stream the deterministic mock response.
-  if (!hasApiKey && !hasBaseUrl) {
+  // No provider configured, or the endpoint is currently known-down →
+  // stream the deterministic mock response immediately (no DNS wait).
+  if ((!hasApiKey && !hasBaseUrl) || isEndpointDown()) {
     const full = await handleMockChat(lastMessage, mode, contextPack);
     yield* simulateStream(full);
     return;
@@ -1387,32 +1621,20 @@ export async function* streamChat(
   try {
     const openai = new OpenAI({
       apiKey: apiKey || 'dummy-key',
-      baseURL: baseURL || undefined
+      baseURL: baseURL || undefined,
+      timeout: 8000,   // fail fast — 8 s hard cap
+      maxRetries: 0    // no SDK-level retries; we handle fallback ourselves
     });
 
     const systemMessage = buildSystemMessage(mode, conversationContext, detectedIntent, selectedTool, businessContext);
     const baseMessages = [systemMessage, ...messages].map(m => ({ role: m.role, content: m.content }));
 
-    // Ask mode is read-only with no tools → stream the completion directly.
-    if (mode !== 'agent') {
-      const stream = await openai.chat.completions.create({
-        model: modelName,
-        messages: baseMessages as any,
-        temperature: 0.2,
-        stream: true
-      });
-      for await (const part of stream) {
-        const delta = part.choices[0]?.delta?.content;
-        if (delta) yield delta;
-      }
-      return;
-    }
-
-    // Agent mode: first detect tool calls (non-streamed), then stream the answer.
+    // Both modes can call tools (Ask gets reads only). First detect tool calls
+    // (non-streamed), run them, then stream the natural-language answer.
     const first = await openai.chat.completions.create({
       model: modelName,
       messages: baseMessages as any,
-      tools: toolsList,
+      tools: toolsForMode(mode),
       tool_choice: 'auto',
       temperature: 0.2
     });
@@ -1449,7 +1671,7 @@ export async function* streamChat(
     // No tool call: we already have the full content — chunk it for a typing feel.
     yield* simulateStream(responseMessage.content || 'Error processing response.');
   } catch (err: any) {
-    console.error('streamChat failed, falling back to mock:', err);
+    markEndpointDown(err);
     const full = await handleMockChat(lastMessage, mode, contextPack);
     yield* simulateStream(full);
   }
