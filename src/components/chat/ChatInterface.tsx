@@ -115,7 +115,9 @@ export default function ChatInterface() {
     chatList,
     renameChat,
     chatInputPreset,
-    setChatInputPreset
+    setChatInputPreset,
+    activeWorkflow,
+    setActiveWorkflow
   } = useWorkspace();
   
   const [width, setWidth] = useState(420);
@@ -296,6 +298,38 @@ What would you like to do?`,
     });
   }, [chatList, hydrated]);
 
+  // Load conversation workflow state from DB on session load or on new message response
+  useEffect(() => {
+    if (!hydrated || !activeChatId) return;
+
+    let isSubscribed = true;
+
+    const syncState = async () => {
+      try {
+        const res = await fetch(`/api/chat/state?chatId=${activeChatId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isSubscribed) {
+          setActiveWorkflow({
+            activeObjectType: data.activeObjectType || null,
+            activeObjectId: data.activeObjectId || null,
+            activeWorkflow: data.activeWorkflow || null,
+            workflowState: data.workflowState || null,
+            metadata: data.metadata || {}
+          });
+        }
+      } catch (err) {
+        console.error('Failed to sync active workflow state:', err);
+      }
+    };
+
+    syncState();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [activeChatId, chatSessions, hydrated, setActiveWorkflow]);
+
   // ---------------------------------------------------------------
   // Streaming send: reads the response body token-by-token and
   // progressively updates the trailing assistant message.
@@ -317,7 +351,7 @@ What would you like to do?`,
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, mode: currentMode }),
+        body: JSON.stringify({ messages: history, mode: currentMode, chatId }),
         signal: controller.signal,
       });
 
@@ -392,7 +426,7 @@ What would you like to do?`,
 
   const stripMarkers = (content: string) => {
     let text = content;
-    ['[CSV_MAPPING_CARD:', '[APPROVAL_CARD:', '[SWITCH_TO_AGENT_CARD:'].forEach(marker => {
+    ['[CSV_MAPPING_CARD:', '[APPROVAL_CARD:', '[SWITCH_TO_AGENT_CARD:', '[WORKFLOW_CARD:'].forEach(marker => {
       const idx = text.indexOf(marker);
       if (idx !== -1) text = text.substring(0, idx);
     });
@@ -1149,6 +1183,186 @@ What would you like to do?`,
       }
     }
 
+    // 4. Check for Workflow Status Cards
+    const workflowRegex = /\[WORKFLOW_CARD:\s*(\{.*?\})\s*\]/g;
+    while ((match = workflowRegex.exec(messageContent)) !== null) {
+      try {
+        const cardData = JSON.parse(match[1]);
+        const type = cardData.activeObjectType;
+        const state = cardData.workflowState; // 'draft' | 'review' | 'approval_required' | 'completed'
+        const meta = cardData.metadata || {};
+
+        const steps = type === 'discount' 
+          ? [
+              { key: 'draft', label: 'Draft' },
+              { key: 'review', label: 'Review' },
+              { key: 'approval_required', label: 'Approvals' },
+              { key: 'completed', label: 'Active' }
+            ]
+          : [
+              { key: 'draft', label: 'Draft' },
+              { key: 'review', label: 'Review' },
+              { key: 'approval_required', label: 'Approvals' },
+              { key: 'completed', label: 'Refunded' }
+            ];
+
+        const activeIdx = steps.findIndex(s => s.key === state);
+
+        cards.push(
+          <div key={`workflow-${match.index}`} className="mt-4 p-4 rounded-xl border border-zinc-800 bg-[#070b13]/80 backdrop-blur-md space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-zinc-800/40">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                <span className="text-[11px] text-zinc-200 font-bold uppercase tracking-wider">
+                  {type === 'discount' ? `Discount Campaign: ${meta.code || 'Draft'}` : `Refund Campaign: ${meta.orderNumber || 'Draft'}`}
+                </span>
+              </div>
+              <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide ${
+                state === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
+                state === 'approval_required' ? 'bg-rose-500/10 text-rose-450' :
+                'bg-purple-500/10 text-purple-400'
+              }`}>
+                {state}
+              </span>
+            </div>
+
+            {/* Stepper track */}
+            <div className="flex items-center justify-between px-2 py-1 bg-zinc-950/20 rounded-lg">
+              {steps.map((step, idx) => {
+                const isPassed = idx < activeIdx;
+                const isCurrent = idx === activeIdx;
+                return (
+                  <React.Fragment key={step.key}>
+                    <div className="flex flex-col items-center space-y-1">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold border transition-colors ${
+                        isPassed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
+                        isCurrent ? 'bg-purple-650 border-purple-500 text-white shadow-[0_0_8px_rgba(147,51,234,0.5)]' :
+                        'bg-zinc-900 border-zinc-800 text-zinc-500'
+                      }`}>
+                        {isPassed ? '✓' : idx + 1}
+                      </div>
+                      <span className={`text-[8px] font-bold ${
+                        isCurrent ? 'text-purple-400' : 
+                        isPassed ? 'text-emerald-400' : 
+                        'text-zinc-500'
+                      }`}>
+                        {step.label}
+                      </span>
+                    </div>
+                    {idx < steps.length - 1 && (
+                      <div className={`flex-1 h-[2px] mx-2 ${
+                        idx < activeIdx ? 'bg-emerald-500/30' : 'bg-zinc-800'
+                      }`} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            {/* Parameter checklist */}
+            <div className="text-[11px] space-y-2 py-1">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 block">
+                Workflow Verification Checklist
+              </span>
+              {type === 'discount' ? (
+                <div className="space-y-1.5 pl-1">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-450 shrink-0" />
+                    <span className="text-zinc-400">Discount Percent: <strong className="text-zinc-200">{meta.discountPercent}%</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {meta.expiry ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-450 shrink-0" />
+                    ) : (
+                      <div className="w-3.5 h-3.5 rounded border border-zinc-805 flex items-center justify-center text-[8px] text-zinc-600 font-bold shrink-0">□</div>
+                    )}
+                    <span className="text-zinc-400">Expiry Date: {meta.expiry ? <strong className="text-zinc-200">{meta.expiry}</strong> : <span className="text-zinc-600 italic">Not set</span>}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {meta.segment ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-450 shrink-0" />
+                    ) : (
+                      <div className="w-3.5 h-3.5 rounded border border-zinc-805 flex items-center justify-center text-[8px] text-zinc-600 font-bold shrink-0">□</div>
+                    )}
+                    <span className="text-zinc-400">Target Segment: {meta.segment ? <strong className="text-zinc-200">{meta.segment}</strong> : <span className="text-zinc-650 italic">All customers</span>}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1.5 pl-1">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-450 shrink-0" />
+                    <span className="text-zinc-400">Customer Name: <strong className="text-zinc-200">{meta.customerName}</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-450 shrink-0" />
+                    <span className="text-zinc-400">Total Refund: <strong className="text-zinc-200">₹{meta.amount?.toLocaleString('en-IN')}</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {meta.reason ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-450 shrink-0" />
+                    ) : (
+                      <div className="w-3.5 h-3.5 rounded border border-zinc-805 flex items-center justify-center text-[8px] text-zinc-600 font-bold shrink-0">□</div>
+                    )}
+                    <span className="text-zinc-400">Refund Reason: {meta.reason ? <strong className="text-zinc-200">{meta.reason}</strong> : <span className="text-zinc-650 italic">Reason required</span>}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            {meta.actions && meta.actions.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-zinc-800/40">
+                {meta.actions.includes('Set Expiry') && (
+                  <button
+                    onClick={() => handleSend('Set expiry next month')}
+                    className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[10px] text-zinc-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <span>Set Expiry</span>
+                  </button>
+                )}
+                {meta.actions.includes('VIP Only') && (
+                  <button
+                    onClick={() => handleSend('VIP customers only')}
+                    className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[10px] text-zinc-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <span>VIP Only</span>
+                  </button>
+                )}
+                {meta.actions.includes('Publish') && (
+                  <button
+                    onClick={() => handleSend('Publish')}
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] text-white font-bold flex items-center gap-1.5 transition-all shadow-md shadow-purple-650/15 cursor-pointer"
+                  >
+                    <span>Publish Campaign</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {meta.actions.includes('Set Reason') && (
+                  <button
+                    onClick={() => handleSend('Reason: Customer dispute')}
+                    className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[10px] text-zinc-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <span>Set Reason: Dispute</span>
+                  </button>
+                )}
+                {meta.actions.includes('Submit Refund') && (
+                  <button
+                    onClick={() => handleSend('Submit Refund')}
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] text-white font-bold flex items-center gap-1.5 transition-all shadow-md shadow-purple-650/15 cursor-pointer"
+                  >
+                    <span>Submit Refund</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      } catch (err) {
+        cards.push(<p key={`workflow-err-${match.index}`} className="text-[10px] text-rose-500 mt-2">Failed to render Workflow card.</p>);
+      }
+    }
+
     if (cards.length === 0) return null;
     return <div className="space-y-4">{cards}</div>;
   };
@@ -1163,6 +1377,9 @@ What would you like to do?`,
     }
     if (textOnly.includes('[SWITCH_TO_AGENT_CARD:')) {
       textOnly = textOnly.substring(0, textOnly.indexOf('[SWITCH_TO_AGENT_CARD:'));
+    }
+    if (textOnly.includes('[WORKFLOW_CARD:')) {
+      textOnly = textOnly.substring(0, textOnly.indexOf('[WORKFLOW_CARD:'));
     }
 
     // Parse out dynamic Suggested Actions

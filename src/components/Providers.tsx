@@ -18,6 +18,14 @@ const DEFAULT_CHATS: ChatSession[] = [
   { id: 'support-flow', title: 'Shipment Status Query', mode: 'ask' },
 ];
 
+export interface ActiveWorkflowState {
+  activeObjectType: string | null;
+  activeObjectId: string | null;
+  activeWorkflow: string | null;
+  workflowState: string | null;
+  metadata: any;
+}
+
 interface WorkspaceContextProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -34,6 +42,8 @@ interface WorkspaceContextProps {
   renameChat: (id: string, title: string) => void;
   chatInputPreset: string;
   setChatInputPreset: (preset: string) => void;
+  activeWorkflow: ActiveWorkflowState;
+  setActiveWorkflow: React.Dispatch<React.SetStateAction<ActiveWorkflowState>>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextProps | undefined>(undefined);
@@ -59,6 +69,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [chatMode, setChatMode] = useState<'ask' | 'agent'>('agent');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [chatInputPreset, setChatInputPreset] = useState('');
+  const [activeWorkflow, setActiveWorkflow] = useState<ActiveWorkflowState>({
+    activeObjectType: null,
+    activeObjectId: null,
+    activeWorkflow: null,
+    workflowState: null,
+    metadata: {}
+  });
 
   // Conversation list — the single source of truth shared by the Sidebar
   // (history) and the chat panel. Persisted so new chats survive a refresh.
@@ -164,7 +181,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         deleteChat,
         renameChat,
         chatInputPreset,
-        setChatInputPreset
+        setChatInputPreset,
+        activeWorkflow,
+        setActiveWorkflow
       }}>
         {children}
 

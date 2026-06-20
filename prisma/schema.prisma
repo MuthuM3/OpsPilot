@@ -176,3 +176,25 @@ model InventoryUpload {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model ConversationState {
+  id               String   @id @default(uuid())
+  chatId           String   @unique
+  activeObjectType String?
+  activeObjectId   String?
+  activeWorkflow   String?
+  workflowState    String?  @default("draft")
+  metadata         Json     @default("{}")
+  updatedAt        DateTime @updatedAt
+}
+
+model Discount {
+  id              String   @id @default(uuid())
+  code            String   @unique
+  discountPercent Int
+  expiry          String?
+  segment         String?
+  status          String   @default("DRAFT") // DRAFT, CONFIGURED, PENDING_APPROVAL, ACTIVE, EXPIRED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

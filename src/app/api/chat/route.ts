@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { streamChat } from '@/lib/ai/openai';
 
 export async function POST(request: NextRequest) {
-  let body: { messages?: unknown; mode?: 'ask' | 'agent' };
+  let body: { messages?: unknown; mode?: 'ask' | 'agent'; chatId?: string };
   try {
     body = await request.json();
   } catch {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const { messages, mode } = body;
+  const { messages, mode, chatId } = body;
 
   if (!messages || !Array.isArray(messages)) {
     return new Response(JSON.stringify({ error: 'Messages array is required' }), {
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of streamChat(messages, mode)) {
+        for await (const chunk of streamChat(messages, mode, chatId)) {
           // Stop generating if the client disconnected / aborted.
           if (request.signal.aborted) break;
           controller.enqueue(encoder.encode(chunk));

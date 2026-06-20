@@ -56,6 +56,11 @@ export interface ConversationContext {
   activeAnalysis?: string;
   activeTimeRange?: string;
   filters?: Record<string, string>;
+  activeObjectType?: string | null;
+  activeObjectId?: string | null;
+  activeWorkflow?: string | null;
+  workflowState?: string | null;
+  workflowMetadata?: any;
 }
 
 export interface BusinessToolResult {
@@ -378,8 +383,28 @@ export const businessTools: Record<
 // ----------------------------------------------------
 // 2. Planner & Context Memory Analyzer
 // ----------------------------------------------------
-export async function parseConversationContext(messages: ChatMessage[]): Promise<ConversationContext> {
+export async function parseConversationContext(messages: ChatMessage[], chatId?: string): Promise<ConversationContext> {
   const ctx: ConversationContext = {};
+
+  if (chatId) {
+    try {
+      const dbState = await prisma.conversationState.findUnique({
+        where: { chatId }
+      });
+      if (dbState) {
+        ctx.activeObjectType = dbState.activeObjectType;
+        ctx.activeObjectId = dbState.activeObjectId;
+        ctx.activeWorkflow = dbState.activeWorkflow;
+        ctx.workflowState = dbState.workflowState;
+        ctx.workflowMetadata = dbState.metadata || {};
+        if (dbState.activeObjectType === 'refund' && dbState.activeObjectId) {
+          ctx.activeOrderId = dbState.activeObjectId;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load conversation state:', err);
+    }
+  }
 
   for (const msg of messages) {
     const text = msg.content;
@@ -680,13 +705,392 @@ async function handleMockChat(
     businessContext: any;
     queryPlan?: QueryPlan;
     lookupData?: any[];
-  }
+  },
+  chatId?: string
 ): Promise<string> {
   const query = context.resolvedQuery;
   const intent = context.detectedIntent;
   const toolName = context.selectedTool;
   const meta = context.businessContext;
   const plan = context.queryPlan;
+
+  // ── 0. Workflow State Machine Interceptor ──────────────────────────────────
+  if (chatId) {
+    try {
+      const dbState = await prisma.conversationState.findUnique({
+        where: { chatId }
+      });
+      const activeWorkflow = dbState?.activeWorkflow;
+      const workflowState = dbState?.workflowState;
+      const metadata = (dbState?.metadata as any) || {};
+
+      // A. Discount Creation Workflow
+      if (activeWorkflow === 'discount_creation') {
+        const q = message.toLowerCase();
+        
+        // Expiry date config
+        if (q.includes('expiry') || q.includes('month') || q.includes('date')) {
+          const nextMonth = new Date();
+          nextMonth.setMonth(nextMonth.getMonth() + 1);
+          const expiryStr = nextMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+          
+          const updatedMeta = { ...metadata, expiry: expiryStr };
+          const hasSegment = !!updatedMeta.segment;
+          const nextState = hasSegment ? 'review' : 'draft';
+
+          await prisma.conversationState.update({
+            where: { chatId },
+            data: {
+              workflowState: nextState,
+              metadata: updatedMeta
+            }
+          });
+
+          await prisma.discount.update({
+            where: { code: metadata.code },
+            data: {
+              expiry: expiryStr,
+              status: hasSegment ? 'CONFIGURED' : 'DRAFT'
+            }
+          });
+
+          const wfCardPayload = JSON.stringify({
+            activeObjectType: 'discount',
+            activeObjectId: metadata.code,
+            activeWorkflow: 'discount_creation',
+            workflowState: nextState,
+            metadata: {
+              ...updatedMeta,
+              status: hasSegment ? 'CONFIGURED' : 'DRAFT',
+              missing: hasSegment ? [] : ['Customer Segment'],
+              actions: hasSegment ? ['Publish'] : ['VIP Only', 'Publish']
+            }
+          });
+
+          return `I've configured the expiry date for coupon **${metadata.code}** to **${expiryStr}**.
+${hasSegment ? 'All required parameters are set. The campaign is now ready to review.' : 'The coupon segment is still missing. Restrict it to VIP customers before publishing.'}
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+        }
+
+        // Segment config
+        if (q.includes('vip') || q.includes('segment') || q.includes('customer')) {
+          const updatedMeta = { ...metadata, segment: 'VIP Customers Only' };
+          const hasExpiry = !!updatedMeta.expiry;
+          const nextState = hasExpiry ? 'review' : 'draft';
+
+          await prisma.conversationState.update({
+            where: { chatId },
+            data: {
+              workflowState: nextState,
+              metadata: updatedMeta
+            }
+          });
+
+          await prisma.discount.update({
+            where: { code: metadata.code },
+            data: {
+              segment: 'VIP',
+              status: hasExpiry ? 'CONFIGURED' : 'DRAFT'
+            }
+          });
+
+          const wfCardPayload = JSON.stringify({
+            activeObjectType: 'discount',
+            activeObjectId: metadata.code,
+            activeWorkflow: 'discount_creation',
+            workflowState: nextState,
+            metadata: {
+              ...updatedMeta,
+              status: hasExpiry ? 'CONFIGURED' : 'DRAFT',
+              missing: hasExpiry ? [] : ['Expiry Date'],
+              actions: hasExpiry ? ['Publish'] : ['Set Expiry', 'Publish']
+            }
+          });
+
+          return `I've restricted coupon **${metadata.code}** to **VIP Customers Only**.
+${hasExpiry ? 'All parameters are configured. We are ready to publish.' : 'We still need an expiry date before this goes live.'}
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+        }
+
+        // Publish Coupon
+        if (q.includes('publish') || q.includes('submit') || q.includes('go live')) {
+          const code = metadata.code;
+          const discountPercent = metadata.discountPercent || 15;
+
+          if (discountPercent > 20) {
+            const riskAnalysis = {
+              riskScore: 65,
+              reasons: ['Discount percent exceeds standard policy threshold (20%)', 'Apology reason not accompanied by customer support ticket ID verification'],
+              explanation: `A ${discountPercent}% discount on code ${code} exceeds the store's 20% self-serve limit and needs manager sign-off before it goes live.`
+            };
+
+            const approval = await prisma.approval.create({
+              data: {
+                type: 'DISCOUNT_CREATION',
+                status: 'PENDING',
+                metadata: { code, discountPercent, reasons: riskAnalysis.reasons, riskScore: riskAnalysis.riskScore, explanation: riskAnalysis.explanation }
+              }
+            });
+
+            await prisma.conversationState.update({
+              where: { chatId },
+              data: {
+                workflowState: 'approval_required',
+                metadata: { ...metadata, approvalId: approval.id, status: 'PENDING_APPROVAL' }
+              }
+            });
+
+            await prisma.discount.update({
+              where: { code },
+              data: { status: 'PENDING_APPROVAL' }
+            });
+
+            const wfCardPayload = JSON.stringify({
+              activeObjectType: 'discount',
+              activeObjectId: code,
+              activeWorkflow: 'discount_creation',
+              workflowState: 'approval_required',
+              metadata: {
+                ...metadata,
+                status: 'PENDING_APPROVAL',
+                missing: [],
+                actions: []
+              }
+            });
+
+            const approvalCardPayload = JSON.stringify({
+              id: approval.id,
+              type: 'DISCOUNT_CREATION',
+              code,
+              amount: discountPercent,
+              riskScore: riskAnalysis.riskScore,
+              explanation: riskAnalysis.explanation
+            });
+
+            return `I've requested publisher approval for coupon **${code}**.
+Because the discount exceeds our 20% guardrail limit, the system flagged it for review.
+
+Once approved by a manager, the coupon code will immediately sync with Shopify and Stripe checkouts.
+
+[APPROVAL_CARD: ${approvalCardPayload}]
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+          } else {
+            // Auto approve
+            await prisma.conversationState.update({
+              where: { chatId },
+              data: {
+                workflowState: 'completed',
+                metadata: { ...metadata, status: 'ACTIVE' }
+              }
+            });
+
+            await prisma.discount.update({
+              where: { code },
+              data: { status: 'ACTIVE' }
+            });
+
+            const wfCardPayload = JSON.stringify({
+              activeObjectType: 'discount',
+              activeObjectId: code,
+              activeWorkflow: 'discount_creation',
+              workflowState: 'completed',
+              metadata: {
+                ...metadata,
+                status: 'ACTIVE',
+                missing: [],
+                actions: []
+              }
+            });
+
+            return `Done — coupon **${code}** is now **ACTIVE** and published to Stripe and Shopify!
+- Pushed to Shopify checkout ✓
+- Synced with Stripe ✓
+- Logged in the audit trail ✓
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+          }
+        }
+      }
+
+      // B. Refund Request Workflow
+      if (activeWorkflow === 'refund_processing') {
+        const q = message.toLowerCase();
+
+        // Reason config
+        if (q.includes('reason') || q.includes('because') || q.includes('due to') || q.includes('for')) {
+          const reasonStr = message.replace(/reason:?/i, '').trim() || 'Requested via Chat Interface';
+          const updatedMeta = { ...metadata, reason: reasonStr };
+
+          await prisma.conversationState.update({
+            where: { chatId },
+            data: {
+              workflowState: 'review',
+              metadata: updatedMeta
+            }
+          });
+
+          const wfCardPayload = JSON.stringify({
+            activeObjectType: 'refund',
+            activeObjectId: metadata.orderNumber,
+            activeWorkflow: 'refund_processing',
+            workflowState: 'review',
+            metadata: {
+              ...updatedMeta,
+              status: 'REVIEWING',
+              missing: [],
+              actions: ['Submit Refund']
+            }
+          });
+
+          return `I've updated the refund reason for **${metadata.orderNumber}** to: "${reasonStr}".
+The request is now ready for final submission.
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+        }
+
+        // Submit Refund
+        if (q.includes('submit') || q.includes('publish') || q.includes('execute') || q.includes('payout')) {
+          const orderNum = metadata.orderNumber;
+          const order = await prisma.order.findUnique({
+            where: { orderNumber: orderNum },
+            include: { customer: true }
+          });
+
+          if (!order) {
+            return `Error: Order #${orderNum} not found in the database.`;
+          }
+
+          const amount = Number(order.totalAmount);
+          const riskAnalysis = await evaluateRefundRisk(order.id, amount);
+          const reasons = riskAnalysis.reasons;
+          const riskScore = riskAnalysis.riskScore;
+          const explanation = riskAnalysis.explanation;
+
+          const existingRefund = await prisma.refund.findFirst({ where: { orderId: order.id } });
+          if (existingRefund) {
+            return `A refund for **${order.orderNumber}** has already been created. Current status: **${existingRefund.status}**.`;
+          }
+
+          if (amount > 10000 || riskScore > 50) {
+            // Requires approval
+            const approval = await prisma.approval.create({
+              data: {
+                type: 'REFUND_REQUEST',
+                status: 'PENDING',
+                metadata: { orderId: order.id, orderNumber: order.orderNumber, customerName: order.customer.name, amount, reasons, riskScore, explanation }
+              }
+            });
+
+            await prisma.refund.create({
+              data: {
+                orderId: order.id,
+                amount,
+                reason: metadata.reason || 'Customer request',
+                status: 'PENDING',
+                riskScore,
+                riskExplanation: explanation,
+                approvalId: approval.id
+              }
+            });
+
+            await prisma.conversationState.update({
+              where: { chatId },
+              data: {
+                workflowState: 'approval_required',
+                metadata: { ...metadata, status: 'PENDING_APPROVAL', approvalId: approval.id }
+              }
+            });
+
+            const wfCardPayload = JSON.stringify({
+              activeObjectType: 'refund',
+              activeObjectId: orderNum,
+              activeWorkflow: 'refund_processing',
+              workflowState: 'approval_required',
+              metadata: {
+                ...metadata,
+                status: 'PENDING_APPROVAL',
+                missing: [],
+                actions: []
+              }
+            });
+
+            const approvalCardPayload = JSON.stringify({
+              id: approval.id,
+              type: 'REFUND_REQUEST',
+              amount,
+              riskScore,
+              explanation
+            });
+
+            return `I've submitted the refund request for **${orderNum}** (₹${amount.toLocaleString('en-IN')}) for manager approval.
+Because this exceeds the 10,000 threshold or is flagged high-risk, it requires sign-off.
+
+[APPROVAL_CARD: ${approvalCardPayload}]
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+          } else {
+            // Low risk auto approve
+            const approval = await prisma.approval.create({
+              data: {
+                type: 'REFUND_REQUEST',
+                status: 'APPROVED',
+                metadata: { orderId: order.id, orderNumber: order.orderNumber, customerName: order.customer.name, amount, reasons, riskScore, explanation }
+              }
+            });
+
+            await prisma.refund.create({
+              data: {
+                orderId: order.id,
+                amount,
+                reason: metadata.reason || 'Customer request',
+                status: 'APPROVED',
+                riskScore,
+                riskExplanation: 'Auto-approved low risk refund.',
+                approvalId: approval.id
+              }
+            });
+
+            await prisma.conversationState.update({
+              where: { chatId },
+              data: {
+                workflowState: 'completed',
+                metadata: { ...metadata, status: 'COMPLETED' }
+              }
+            });
+
+            // Update order status to REFUNDED
+            await prisma.order.update({
+              where: { id: order.id },
+              data: { status: 'REFUNDED' }
+            });
+
+            const wfCardPayload = JSON.stringify({
+              activeObjectType: 'refund',
+              activeObjectId: orderNum,
+              activeWorkflow: 'refund_processing',
+              workflowState: 'completed',
+              metadata: {
+                ...metadata,
+                status: 'COMPLETED',
+                missing: [],
+                actions: []
+              }
+            });
+
+            return `Done — refund for **${orderNum}** (₹${amount.toLocaleString('en-IN')}) has been auto-approved and processed!
+- Stripe payout initialized ✓
+- Zendesk ticket updated and closed ✓
+- Customer notified via email ✓
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error running workflow state machine:', err);
+    }
+  }
 
   // ── Ask Mode guard ────────────────────────────────────────────────────────
   if (mode === 'ask' && intent === 'action') {
@@ -799,36 +1203,68 @@ ${shown.map((c: any, i: number) =>
     const codeMatch = query.match(/code\s+([a-zA-Z0-9_-]+)/i) || query.match(/discount\s+([a-zA-Z0-9_-]+)/i) || query.match(/coupon\s+([a-zA-Z0-9_-]+)/i);
     const code = codeMatch ? codeMatch[1].toUpperCase() : `SAVE${discountPercent}`;
 
-    if (discountPercent > 20) {
-      const riskAnalysis = {
-        riskScore: 65,
-        reasons: ['Discount percent exceeds standard policy threshold (20%)', 'Apology reason not accompanied by customer support ticket ID verification'],
-        explanation: `A ${discountPercent}% discount on code ${code} exceeds the store's 20% self-serve limit and needs manager sign-off before it goes live.`
-      };
-      const approval = await prisma.approval.create({
-        data: {
-          type: 'DISCOUNT_CREATION',
-          status: 'PENDING',
-          metadata: { code, discountPercent, reasons: riskAnalysis.reasons, riskScore: riskAnalysis.riskScore, explanation: riskAnalysis.explanation }
-        }
-      });
-      const approvalCardPayload = JSON.stringify({ id: approval.id, type: 'DISCOUNT_CREATION', code, amount: discountPercent, riskScore: riskAnalysis.riskScore, explanation: riskAnalysis.explanation });
-      return `I've set up coupon **${code}** for **${discountPercent}% off**, but it needs approval before going live.
+    if (chatId) {
+      try {
+        await prisma.conversationState.upsert({
+          where: { chatId },
+          update: {
+            activeObjectType: 'discount',
+            activeObjectId: code,
+            activeWorkflow: 'discount_creation',
+            workflowState: 'draft',
+            metadata: { code, discountPercent, expiry: null, segment: null, status: 'DRAFT' }
+          },
+          create: {
+            chatId,
+            activeObjectType: 'discount',
+            activeObjectId: code,
+            activeWorkflow: 'discount_creation',
+            workflowState: 'draft',
+            metadata: { code, discountPercent, expiry: null, segment: null, status: 'DRAFT' }
+          }
+        });
 
-The reason: a discount above 20% crosses the store's policy threshold (risk score 65/100). I've raised a manager approval request and it's waiting in the Approvals Hub.
-
-Once approved, I'll push it to Shopify and sync with Stripe checkout automatically.
-
-[APPROVAL_CARD: ${approvalCardPayload}]`;
-    } else {
-      return `Done — coupon **${code}** is live with a **${discountPercent}% discount**.
-
-- Pushed to Shopify checkout ✓
-- Synced with Stripe ✓
-- Logged in the audit trail ✓
-
-Want to set an expiry date or restrict it to VIP customers?`;
+        await prisma.discount.upsert({
+          where: { code },
+          update: {
+            discountPercent,
+            expiry: null,
+            segment: null,
+            status: 'DRAFT'
+          },
+          create: {
+            code,
+            discountPercent,
+            expiry: null,
+            segment: null,
+            status: 'DRAFT'
+          }
+        });
+      } catch (err) {
+        console.error('Failed to write discount draft to DB:', err);
+      }
     }
+
+    const wfCardPayload = JSON.stringify({
+      activeObjectType: 'discount',
+      activeObjectId: code,
+      activeWorkflow: 'discount_creation',
+      workflowState: 'draft',
+      metadata: {
+        code,
+        discountPercent,
+        expiry: null,
+        segment: null,
+        status: 'DRAFT',
+        missing: ['Expiry Date', 'Customer Segment'],
+        actions: ['Set Expiry', 'VIP Only', 'Publish']
+      }
+    });
+
+    return `I've started a new discount creation workflow for coupon code **${code}** with a **${discountPercent}% discount**.
+The coupon draft is ready. We need to set an expiry date and specify a customer segment before publishing it.
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
   }
 
   // ── ACTION: Refund Request ────────────────────────────────────────────────
@@ -838,42 +1274,53 @@ Want to set an expiry date or restrict it to VIP customers?`;
     }
     const order = meta.order;
     const customer = meta.customer;
-    const amount = meta.order.totalAmount;
-    const riskScore = meta.riskScore;
-    const explanation = meta.explanation;
-    const reasons = meta.reasons;
-
-    const existingRefund = await prisma.refund.findFirst({ where: { orderId: order.id } });
-    if (existingRefund) {
-      return `A refund for **${order.orderNumber}** was already submitted — it's currently **${existingRefund.status}** (risk score ${existingRefund.riskScore}/100). You can manage it in the Approvals Hub.`;
+    const amount = Number(order.totalAmount);
+    
+    if (chatId) {
+      try {
+        await prisma.conversationState.upsert({
+          where: { chatId },
+          update: {
+            activeObjectType: 'refund',
+            activeObjectId: order.orderNumber,
+            activeWorkflow: 'refund_processing',
+            workflowState: 'draft',
+            metadata: { orderNumber: order.orderNumber, customerName: customer.name, amount, reason: null, status: 'DRAFT' }
+          },
+          create: {
+            chatId,
+            activeObjectType: 'refund',
+            activeObjectId: order.orderNumber,
+            activeWorkflow: 'refund_processing',
+            workflowState: 'draft',
+            metadata: { orderNumber: order.orderNumber, customerName: customer.name, amount, reason: null, status: 'DRAFT' }
+          }
+        });
+      } catch (err) {
+        console.error('Failed to write refund state to DB:', err);
+      }
     }
 
-    const approval = await prisma.approval.create({
-      data: {
-        type: 'REFUND_REQUEST',
-        status: 'PENDING',
-        metadata: { orderId: order.id, orderNumber: order.orderNumber, customerName: customer.name, amount, reasons, riskScore, explanation }
+    const wfCardPayload = JSON.stringify({
+      activeObjectType: 'refund',
+      activeObjectId: order.orderNumber,
+      activeWorkflow: 'refund_processing',
+      workflowState: 'draft',
+      metadata: {
+        orderNumber: order.orderNumber,
+        customerName: customer.name,
+        amount,
+        reason: null,
+        status: 'DRAFT',
+        missing: ['Reason for Refund'],
+        actions: ['Set Reason']
       }
     });
-    await prisma.refund.create({
-      data: {
-        orderId: order.id, amount, reason: 'Requested via Chat: Customer dispute / order issue.',
-        status: 'PENDING', riskScore, riskExplanation: explanation, approvalId: approval.id
-      }
-    });
-    const approvalCardPayload = JSON.stringify({ id: approval.id, type: 'REFUND_REQUEST', amount, riskScore, explanation });
 
-    const riskLabel = riskScore > 50 ? 'high-risk' : 'low-risk';
-    return `I've reviewed **Order #${order.orderNumber}** for **${customer.name}** (${customer.tier}) — total ₹${Number(amount).toLocaleString('en-IN')}.
+    return `I've initiated a refund processing workflow for **Order #${order.orderNumber}** (₹${amount.toLocaleString('en-IN')}).
+Please provide a reason for the refund before we submit it.
 
-The refund scores **${riskScore}/100** (${riskLabel}). Here's why it needs approval:
-${reasons.map((r: string) => `- ${r}`).join('\n')}
-
-${explanation}
-
-I've queued it in the Approvals Hub. Once a manager approves, the payout goes out and the Zendesk ticket closes automatically.
-
-[APPROVAL_CARD: ${approvalCardPayload}]`;
+[WORKFLOW_CARD: ${wfCardPayload}]`;
   }
 
   // ── ANALYSIS: Tool Registry ───────────────────────────────────────────────
@@ -1163,10 +1610,10 @@ function toolsForMode(mode: 'ask' | 'agent') {
 // Gather conversation context, classify intent, run the query planner, fetch
 // real DB records for LOOKUP queries, and compile business context for ANALYSIS.
 // This is the single source of truth shared by both the buffered and streaming paths.
-async function gatherChatContext(messages: ChatMessage[]) {
+async function gatherChatContext(messages: ChatMessage[], chatId?: string) {
   const lastMessage = messages[messages.length - 1].content;
 
-  const conversationContext = await parseConversationContext(messages);
+  const conversationContext = await parseConversationContext(messages, chatId);
 
   let resolvedQuery = lastMessage.toLowerCase().trim();
   const isProceed = /proceed/i.test(resolvedQuery) || /approve.*it/i.test(resolvedQuery) || /go.*ahead/i.test(resolvedQuery) || /execute/i.test(resolvedQuery) || /do.*it/i.test(resolvedQuery);
@@ -1507,12 +1954,12 @@ async function* simulateStream(text: string): AsyncGenerator<string> {
   }
 }
 
-export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent' = 'agent'): Promise<string> {
+export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent' = 'agent', chatId?: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   const baseURL = process.env.OPENAI_API_BASE_URL;
   const modelName = process.env.OPENAI_MODEL_NAME || 'gpt-4o-mini';
 
-  const { lastMessage, conversationContext, selectedTool, detectedIntent, businessContext, contextPack } = await gatherChatContext(messages);
+  const { lastMessage, conversationContext, selectedTool, detectedIntent, businessContext, contextPack } = await gatherChatContext(messages, chatId);
 
   // Fallback to mock if neither API Key nor custom Base URL is set, or if the
   // endpoint was recently found to be unreachable.
@@ -1520,7 +1967,7 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
   const hasBaseUrl = baseURL && baseURL.trim() !== '';
 
   if ((!hasApiKey && !hasBaseUrl) || isEndpointDown()) {
-    return handleMockChat(lastMessage, mode, contextPack);
+    return handleMockChat(lastMessage, mode, contextPack, chatId);
   }
 
   try {
@@ -1590,7 +2037,7 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
     return responseMessage.content || 'Error processing response.';
   } catch (err: any) {
     markEndpointDown(err);
-    return handleMockChat(lastMessage, mode, contextPack);
+    return handleMockChat(lastMessage, mode, contextPack, chatId);
   }
 }
 
@@ -1599,13 +2046,14 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
 // ----------------------------------------------------
 export async function* streamChat(
   messages: ChatMessage[],
-  mode: 'ask' | 'agent' = 'agent'
+  mode: 'ask' | 'agent' = 'agent',
+  chatId?: string
 ): AsyncGenerator<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   const baseURL = process.env.OPENAI_API_BASE_URL;
   const modelName = process.env.OPENAI_MODEL_NAME || 'gpt-4o-mini';
 
-  const { lastMessage, conversationContext, detectedIntent, selectedTool, businessContext, contextPack } = await gatherChatContext(messages);
+  const { lastMessage, conversationContext, detectedIntent, selectedTool, businessContext, contextPack } = await gatherChatContext(messages, chatId);
 
   const hasApiKey = apiKey && apiKey.trim() !== '';
   const hasBaseUrl = baseURL && baseURL.trim() !== '';
@@ -1613,7 +2061,7 @@ export async function* streamChat(
   // No provider configured, or the endpoint is currently known-down →
   // stream the deterministic mock response immediately (no DNS wait).
   if ((!hasApiKey && !hasBaseUrl) || isEndpointDown()) {
-    const full = await handleMockChat(lastMessage, mode, contextPack);
+    const full = await handleMockChat(lastMessage, mode, contextPack, chatId);
     yield* simulateStream(full);
     return;
   }
@@ -1672,7 +2120,7 @@ export async function* streamChat(
     yield* simulateStream(responseMessage.content || 'Error processing response.');
   } catch (err: any) {
     markEndpointDown(err);
-    const full = await handleMockChat(lastMessage, mode, contextPack);
+    const full = await handleMockChat(lastMessage, mode, contextPack, chatId);
     yield* simulateStream(full);
   }
 }

@@ -18,7 +18,8 @@ export default function CopilotPanel() {
     setChatMode, 
     setIsChatOpen, 
     setChatInputPreset, 
-    showToast 
+    showToast,
+    activeWorkflow
   } = useWorkspace();
  
   // Fetch real-time dashboard telemetry
@@ -200,6 +201,49 @@ export default function CopilotPanel() {
               ● MONITORING
             </span>
           </div>
+        </div>
+
+        {/* Active Business Workflow State */}
+        <div className="p-3 rounded-xl border border-zinc-800 bg-zinc-950/30 space-y-3">
+          <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 block">
+            Active Workflow
+          </span>
+          {activeWorkflow && activeWorkflow.activeObjectType ? (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-[10px]">
+                <span className="text-zinc-200 font-semibold uppercase">
+                  {activeWorkflow.activeObjectType === 'discount' ? 'Discount Campaign' : 'Refund Process'}
+                </span>
+                <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide ${
+                  activeWorkflow.workflowState === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
+                  activeWorkflow.workflowState === 'approval_required' ? 'bg-rose-500/10 text-rose-400 animate-pulse' :
+                  'bg-purple-500/10 text-purple-400'
+                }`}>
+                  {activeWorkflow.workflowState}
+                </span>
+              </div>
+              <div className="text-[10px] text-zinc-400 space-y-1">
+                <div>Object ID: <strong className="text-zinc-300">{activeWorkflow.activeObjectId || 'N/A'}</strong></div>
+                {activeWorkflow.activeObjectType === 'discount' ? (
+                  <>
+                    <div>Value: <strong className="text-zinc-300">{activeWorkflow.metadata?.discountPercent}% Off</strong></div>
+                    <div>Expiry: <strong className="text-zinc-300">{activeWorkflow.metadata?.expiry || 'Not Set'}</strong></div>
+                    <div>Segment: <strong className="text-zinc-300">{activeWorkflow.metadata?.segment || 'All Customers'}</strong></div>
+                  </>
+                ) : (
+                  <>
+                    <div>Customer: <strong className="text-zinc-300">{activeWorkflow.metadata?.customerName || 'N/A'}</strong></div>
+                    <div>Amount: <strong className="text-zinc-300">₹{activeWorkflow.metadata?.amount?.toLocaleString('en-IN') || '0'}</strong></div>
+                    <div>Reason: <strong className="text-zinc-300">{activeWorkflow.metadata?.reason || 'Not Set'}</strong></div>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-[9px] text-zinc-500 leading-relaxed italic">
+              No active workflow. Click a Guided Playbook scenario below to launch one.
+            </p>
+          )}
         </div>
  
         {/* Guided Playbook Scenarios */}
