@@ -2302,7 +2302,10 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
     // Inject the structured conversation memory + real database figures directly in system prompt
     const systemMessage = buildSystemMessage(mode, conversationContext, detectedIntent, selectedTool, businessContext);
 
-    const apiMessages = [systemMessage, ...messages];
+    // Keep only the last 10 messages of history to conserve tokens during demo
+    const historyLimit = 10;
+    const truncatedHistory = messages.slice(-historyLimit);
+    const apiMessages = [systemMessage, ...truncatedHistory];
 
     // Call OpenAI
     const response = await openai.chat.completions.create({
@@ -2310,7 +2313,8 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
       messages: apiMessages.map(m => ({ role: m.role, content: m.content })),
       tools: toolsForMode(mode),       // reads in Ask mode, reads + writes in Agent mode
       tool_choice: 'auto',
-      temperature: 0.2
+      temperature: 0.2,
+      max_tokens: 800
     });
 
     const responseMessage = response.choices[0].message;
@@ -2340,11 +2344,12 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
         model: modelName,
         messages: [
           systemMessage,
-          ...messages.map(m => ({ role: m.role, content: m.content })),
+          ...truncatedHistory.map(m => ({ role: m.role, content: m.content })),
           responseMessage,
           ...toolOutputs as any
         ],
-        temperature: 0.2
+        temperature: 0.2,
+        max_tokens: 800
       });
 
       let botContent = secondResponse.choices[0].message.content || 'Error executing assistant response.';
@@ -2395,7 +2400,11 @@ export async function* streamChat(
     });
 
     const systemMessage = buildSystemMessage(mode, conversationContext, detectedIntent, selectedTool, businessContext);
-    const baseMessages = [systemMessage, ...messages].map(m => ({ role: m.role, content: m.content }));
+    
+    // Keep only the last 10 messages of history to conserve tokens during demo
+    const historyLimit = 10;
+    const truncatedHistory = messages.slice(-historyLimit);
+    const baseMessages = [systemMessage, ...truncatedHistory].map(m => ({ role: m.role, content: m.content }));
 
     // Both modes can call tools (Ask gets reads only). First detect tool calls
     // (non-streamed), run them, then stream the natural-language answer.
@@ -2404,7 +2413,8 @@ export async function* streamChat(
       messages: baseMessages as any,
       tools: toolsForMode(mode),
       tool_choice: 'auto',
-      temperature: 0.2
+      temperature: 0.2,
+      max_tokens: 800
     });
 
     const responseMessage = first.choices[0].message;
@@ -2423,7 +2433,8 @@ export async function* streamChat(
         model: modelName,
         messages: [...baseMessages, responseMessage, ...toolOutputs] as any,
         temperature: 0.2,
-        stream: true
+        stream: true,
+        max_tokens: 800
       });
       for await (const part of stream) {
         const delta = part.choices[0]?.delta?.content;
