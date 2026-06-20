@@ -3,7 +3,7 @@ import { streamChat } from '@/lib/ai/openai';
 import { logToFile } from '@/lib/ai/logger';
 
 export async function POST(request: NextRequest) {
-  let body: { messages?: unknown; mode?: 'ask' | 'agent'; chatId?: string };
+  let body: { messages?: unknown; mode?: 'ask' | 'agent'; chatId?: string; role?: 'manager' | 'operator' };
   try {
     body = await request.json();
   } catch {
@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const { messages, mode, chatId } = body;
-  logToFile(`[API ROUTE] Received request: mode=${mode}, chatId=${chatId}, messagesCount=${Array.isArray(messages) ? messages.length : 0}`);
+  const { messages, mode, chatId, role } = body;
+  logToFile(`[API ROUTE] Received request: mode=${mode}, chatId=${chatId}, role=${role}, messagesCount=${Array.isArray(messages) ? messages.length : 0}`);
 
   if (!messages || !Array.isArray(messages)) {
     return new Response(JSON.stringify({ error: 'Messages array is required' }), {
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of streamChat(messages, mode, chatId)) {
+        for await (const chunk of streamChat(messages, mode, chatId, role)) {
           // Stop generating if the client disconnected / aborted.
           if (request.signal.aborted) break;
           controller.enqueue(encoder.encode(chunk));

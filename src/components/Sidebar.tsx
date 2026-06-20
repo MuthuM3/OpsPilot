@@ -25,7 +25,7 @@ import {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { activeChatId, setActiveChatId, isChatOpen, setIsChatOpen, showToast, chatList, createChat, deleteChat, renameChat } = useWorkspace();
+  const { activeChatId, setActiveChatId, isChatOpen, setIsChatOpen, showToast, chatList, createChat, deleteChat, renameChat, role, setRole } = useWorkspace();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
@@ -331,18 +331,47 @@ export default function Sidebar() {
 
         {!isCollapsed ? (
           <div className="space-y-2 animate-in fade-in duration-200">
-            <div className="p-3 rounded-xl bg-zinc-900/50 border border-zinc-800/60 space-y-2">
+            {/* Role switcher — demonstrates governance roles (Manager can approve, Operator cannot) */}
+            <div className="p-2.5 rounded-xl bg-zinc-900/50 border border-zinc-800/60 space-y-1.5">
               <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-500 block">
-                Connected Systems
+                Acting as
+              </span>
+              <div className="flex items-center p-0.5 rounded-lg bg-zinc-950/60 border border-zinc-800/50">
+                <button
+                  onClick={() => setRole('manager')}
+                  className={`flex-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
+                    role === 'manager' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  Manager
+                </button>
+                <button
+                  onClick={() => setRole('operator')}
+                  className={`flex-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
+                    role === 'operator' ? 'bg-amber-500/10 border border-amber-500/20 text-amber-300' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  Operator
+                </button>
+              </div>
+              <p className="text-[8.5px] text-zinc-500 leading-tight">
+                {role === 'manager' ? 'Can approve & execute governed actions.' : 'Can request actions; approvals need a Manager.'}
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-zinc-900/50 border border-zinc-800/60 space-y-2">
+              <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-500 flex items-center justify-between">
+                <span>Integrations</span>
+                <span className="text-amber-400/80 normal-case tracking-normal">Simulated</span>
               </span>
               <div className="grid grid-cols-3 gap-1 text-[9px] font-bold text-center">
-                <div className="py-1 px-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <div className="py-1 px-1 rounded bg-zinc-800/40 border border-zinc-700/40 text-zinc-400" title="Simulated for demo — no live connection">
                   Shopify
                 </div>
-                <div className="py-1 px-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <div className="py-1 px-1 rounded bg-zinc-800/40 border border-zinc-700/40 text-zinc-400" title="Simulated for demo — no live connection">
                   Stripe
                 </div>
-                <div className="py-1 px-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <div className="py-1 px-1 rounded bg-zinc-800/40 border border-zinc-700/40 text-zinc-400" title="Simulated for demo — no live connection">
                   Zendesk
                 </div>
               </div>
@@ -366,9 +395,9 @@ export default function Sidebar() {
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1.5 py-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Shopify Connected" />
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Stripe Connected" />
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Zendesk Connected" />
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500/70" title="Shopify (simulated)" />
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500/70" title="Stripe (simulated)" />
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500/70" title="Zendesk (simulated)" />
             <button
               onClick={() => generateMutation.mutate()}
               disabled={generateMutation.isPending}

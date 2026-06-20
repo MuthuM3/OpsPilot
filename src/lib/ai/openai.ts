@@ -1985,6 +1985,35 @@ const writeTools = [
         }
       }
     }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'update_order_status',
+      description: 'Change an order\'s status directly (low-risk operational action, no approval needed). Use for "cancel order ORD-1025", "mark ORD-1025 completed", "flag ORD-1025 as delayed".',
+      parameters: {
+        type: 'object',
+        properties: {
+          orderNumber: { type: 'string', description: 'The order number, e.g. ORD-1025' },
+          status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'CANCELLED', 'DELAYED'], description: 'The new status' }
+        },
+        required: ['orderNumber', 'status']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'resolve_ticket',
+      description: 'Mark a support ticket as RESOLVED (low-risk operational action, no approval needed). Use for "resolve ticket TKT-001", "close that ticket".',
+      parameters: {
+        type: 'object',
+        properties: {
+          ticketNumber: { type: 'string', description: 'The ticket number, e.g. TKT-001' }
+        },
+        required: ['ticketNumber']
+      }
+    }
   }
 ];
 
@@ -2139,6 +2168,8 @@ ${mode === 'ask'
   - ADD NEW product(s) to the catalog ("add products", "create a new SKU") → create_product (pass an array of {name, price, inventory, category?}). Invent sensible demo values if the user says "just for demo".
   - Change the stock level of an EXISTING product (restock/adjust) → request_inventory_update.
   - Approve / reject a pending request ("approve it", "reject that") → approve_request / reject_request (omit approvalId to act on the most recent pending one). approve_request executes the action immediately, so confirm the result in plain language afterwards.
+  - Cancel / complete / re-flag an order ("cancel ORD-1025", "mark completed") → update_order_status (executes directly, no approval).
+  - Resolve / close a support ticket ("resolve TKT-001") → resolve_ticket (executes directly, no approval).
   Never claim something was added/updated/refunded unless the matching tool returned successfully. Requests that need sign-off return an approval the user must approve to take effect.`}`
   };
 }
@@ -2148,7 +2179,8 @@ ${mode === 'ask'
 async function executeToolCall(
   functionName: string,
   args: any,
-  conversationContext: ConversationContext
+  conversationContext: ConversationContext,
+  role: 'manager' | 'operator' = 'manager'
 ): Promise<string> {
   let output = '';
   if (functionName === 'list_products') {
@@ -2435,6 +2467,13 @@ async function executeToolCall(
       });
     }
   } else if (functionName === 'approve_request' || functionName === 'reject_request') {
+    // Governance: only a Manager may approve/reject.
+    if (role !== 'manager') {
+      return JSON.stringify({
+        status: 'ROLE_BLOCKED',
+        msg: 'You are acting as Operator, which cannot approve or reject. A Manager must take this action — tell the user to switch the role toggle to Manager.'
+      });
+    }
     // Resolve the target approval: explicit id, else the most recent pending one.
     let approvalId: string | undefined = args.approvalId;
     if (!approvalId) {
@@ -2469,6 +2508,46 @@ async function executeToolCall(
           : { status: 'ERROR', approvalId, summary: label, error: result.body.error || 'Rejection failed' });
       }
     }
+  } else if (functionName === 'update_order_status') {
+    const orderNum = (args.orderNumber || '').toUpperCase();
+    const status = (args.status || '').toUpperCase();
+    const allowed = ['PENDING', 'COMPLETED', 'CANCELLED', 'DELAYED'];
+    if (!allowed.includes(status)) {
+      output = JSON.stringify({ error: `Invalid status '${args.status}'. Allowed: ${allowed.join(', ')}.` });
+    } else {
+      const order = await prisma.order.findUnique({ where: { orderNumber: orderNum }, include: { customer: true } });
+      if (!order) {
+        output = JSON.stringify({ error: `Order ${orderNum} not found.` });
+      } else {
+        const previous = order.status;
+        await prisma.order.update({ where: { id: order.id }, data: { status: status as any } });
+        output = JSON.stringify({
+          status: 'SUCCESS',
+          orderNumber: order.orderNumber,
+          customer: order.customer.name,
+          previousStatus: previous,
+          newStatus: status,
+          msg: `Order ${order.orderNumber} (${order.customer.name}) moved from ${previous} to ${status}.`
+        });
+      }
+    }
+  } else if (functionName === 'resolve_ticket') {
+    const ticketNum = (args.ticketNumber || '').toUpperCase();
+    const ticket = await prisma.ticket.findUnique({ where: { ticketNumber: ticketNum }, include: { customer: true } });
+    if (!ticket) {
+      output = JSON.stringify({ error: `Ticket ${ticketNum} not found.` });
+    } else if (ticket.status === 'RESOLVED') {
+      output = JSON.stringify({ status: 'ALREADY_RESOLVED', ticketNumber: ticket.ticketNumber, msg: `Ticket ${ticket.ticketNumber} is already resolved.` });
+    } else {
+      await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'RESOLVED' } });
+      output = JSON.stringify({
+        status: 'SUCCESS',
+        ticketNumber: ticket.ticketNumber,
+        subject: ticket.subject,
+        customer: ticket.customer.name,
+        msg: `Ticket ${ticket.ticketNumber} (${ticket.subject}) marked RESOLVED.`
+      });
+    }
   }
   return output;
 }
@@ -2478,17 +2557,15 @@ async function executeToolCall(
 function buildApprovalCardAppends(toolOutputs: any[]): string {
   let appended = '';
 
-  const approvalOutput = toolOutputs.find(o => {
-    try {
-      const parsed = JSON.parse(o.content);
-      return parsed.status === 'APPROVAL_REQUIRED';
-    } catch {
-      return false;
-    }
-  });
-
-  if (approvalOutput) {
-    const data = JSON.parse(approvalOutput.content);
+  // Render a card for EVERY approval-producing tool output, so batched/agentic
+  // actions ("restock everything below 10") each surface their own card.
+  const seen = new Set<string>();
+  for (const o of toolOutputs) {
+    let data: any;
+    try { data = JSON.parse(o.content); } catch { continue; }
+    if (data?.status !== 'APPROVAL_REQUIRED' || !data.approvalId) continue;
+    if (seen.has(data.approvalId)) continue;
+    seen.add(data.approvalId);
     const cardPayload = {
       id: data.approvalId,
       type: data.type || 'REFUND_REQUEST',
@@ -2547,7 +2624,7 @@ async function* simulateStream(text: string): AsyncGenerator<string> {
   }
 }
 
-export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent' = 'agent', chatId?: string): Promise<string> {
+export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent' = 'agent', chatId?: string, role: 'manager' | 'operator' = 'manager'): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   const baseURL = process.env.OPENAI_API_BASE_URL;
   const modelName = process.env.OPENAI_MODEL_NAME || 'gpt-4o-mini';
@@ -2599,7 +2676,7 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
         const functionName = tCall.function.name;
         const args = JSON.parse(tCall.function.arguments);
 
-        const output = await executeToolCall(functionName, args, conversationContext);
+        const output = await executeToolCall(functionName, args, conversationContext, role);
 
         toolOutputs.push({
           tool_call_id: toolCall.id,
@@ -2644,7 +2721,8 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
 export async function* streamChat(
   messages: ChatMessage[],
   mode: 'ask' | 'agent' = 'agent',
-  chatId?: string
+  chatId?: string,
+  role: 'manager' | 'operator' = 'manager'
 ): AsyncGenerator<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   const baseURL = process.env.OPENAI_API_BASE_URL;
@@ -2676,49 +2754,52 @@ export async function* streamChat(
     const truncatedHistory = messages.slice(-historyLimit);
     const baseMessages = [systemMessage, ...truncatedHistory].map(m => ({ role: m.role, content: m.content }));
 
-    // Both modes can call tools (Ask gets reads only). First detect tool calls
-    // (non-streamed), run them, then stream the natural-language answer.
-    const first = await openai.chat.completions.create({
-      model: modelName,
-      messages: baseMessages as any,
-      tools: toolsForMode(mode),
-      tool_choice: 'auto',
-      temperature: 0.2,
-      max_tokens: 800
-    });
+    // Agent loop: the model can fetch data, then act on the results, across
+    // multiple rounds ("restock everything below 10" = get_inventory → restock
+    // each). Tool rounds run non-streamed; the final answer is chunked for a
+    // typing feel. Bounded to avoid runaway loops.
+    const tools = toolsForMode(mode);
+    const convo: any[] = [...baseMessages];
+    const allToolOutputs: any[] = [];
+    const MAX_STEPS = 5;
 
-    const responseMessage = first.choices[0].message;
-
-    if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-      const toolOutputs: any[] = [];
-      for (const toolCall of responseMessage.tool_calls) {
-        const tCall = toolCall as any;
-        const functionName = tCall.function.name;
-        const args = JSON.parse(tCall.function.arguments);
-        const output = await executeToolCall(functionName, args, conversationContext);
-        toolOutputs.push({ tool_call_id: toolCall.id, role: 'tool', name: functionName, content: output });
-      }
-
-      const stream = await openai.chat.completions.create({
+    for (let step = 0; step < MAX_STEPS; step++) {
+      const resp = await openai.chat.completions.create({
         model: modelName,
-        messages: [...baseMessages, responseMessage, ...toolOutputs] as any,
+        messages: convo as any,
+        tools,
+        tool_choice: 'auto',
         temperature: 0.2,
-        stream: true,
         max_tokens: 800
       });
-      for await (const part of stream) {
-        const delta = part.choices[0]?.delta?.content;
-        if (delta) yield delta;
+      const msg = resp.choices[0].message;
+
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        convo.push(msg);
+        for (const toolCall of msg.tool_calls) {
+          const tCall = toolCall as any;
+          const functionName = tCall.function.name;
+          let args: any = {};
+          try { args = JSON.parse(tCall.function.arguments || '{}'); } catch { /* tolerate bad args */ }
+          const output = await executeToolCall(functionName, args, conversationContext, role);
+          const toolMsg = { tool_call_id: toolCall.id, role: 'tool', name: functionName, content: output };
+          convo.push(toolMsg);
+          allToolOutputs.push(toolMsg);
+        }
+        continue; // let the model act on the tool results
       }
 
-      // Append the approval card markers once the natural-language answer is done.
-      const cards = buildApprovalCardAppends(toolOutputs);
+      // No more tool calls → final answer.
+      yield* simulateStream(msg.content || 'Done.');
+      const cards = buildApprovalCardAppends(allToolOutputs);
       if (cards) yield cards;
       return;
     }
 
-    // No tool call: we already have the full content — chunk it for a typing feel.
-    yield* simulateStream(responseMessage.content || 'Error processing response.');
+    // Safety valve: exceeded the step budget — summarize what was done.
+    yield* simulateStream('I completed several steps for that request. Here are the resulting items for your review:');
+    const loopCards = buildApprovalCardAppends(allToolOutputs);
+    if (loopCards) yield loopCards;
   } catch (err: any) {
     const errMessage = err?.message ?? String(err);
     logToFile(`[streamChat ERROR] LLM call failed: ${errMessage}. Config: model=${modelName}, baseURL=${baseURL}, hasApiKey=${hasApiKey}`);

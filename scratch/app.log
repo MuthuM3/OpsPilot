@@ -54,3 +54,9 @@
 [2026-06-20T21:43:24.171Z] [API ROUTE] Received request: mode=agent, chatId=undefined, messagesCount=1
 [2026-06-20T21:46:28.482Z] [API ROUTE] Received request: mode=agent, chatId=undefined, messagesCount=1
 [2026-06-20T21:46:33.680Z] [API ROUTE] Received request: mode=agent, chatId=undefined, messagesCount=3
+[2026-06-20T22:01:46.611Z] [API ROUTE] Received request: mode=ask, chatId=undefined, messagesCount=1
+[2026-06-20T22:06:51.022Z] [API ROUTE] Received request: mode=agent, chatId=undefined, role=operator, messagesCount=1
+[2026-06-20T22:06:53.651Z] [API ROUTE] Received request: mode=agent, chatId=undefined, role=manager, messagesCount=1
+[2026-06-20T22:08:08.398Z] [API ROUTE] Received request: mode=agent, chatId=undefined, role=manager, messagesCount=1
+[2026-06-20T22:08:11.285Z] [API ROUTE] Received request: mode=agent, chatId=undefined, role=manager, messagesCount=1
+[2026-06-20T22:10:37.943Z] [API ROUTE] Received request: mode=agent, chatId=undefined, role=manager, messagesCount=1

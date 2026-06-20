@@ -118,7 +118,8 @@ export default function ChatInterface() {
     chatInputPreset,
     setChatInputPreset,
     activeWorkflow,
-    setActiveWorkflow
+    setActiveWorkflow,
+    role
   } = useWorkspace();
   
   const [width, setWidth] = useState(420);
@@ -268,23 +269,55 @@ You can ask me questions about shipments, products, or tickets:
     }
   }, [chatSessions, hydrated]);
 
-  // Seed a generic welcome the first time a (new) conversation is opened.
+  // Seed a proactive, data-driven briefing the first time a (new) conversation
+  // is opened — shows the AI is useful before the user even types.
   useEffect(() => {
     if (!hydrated || !activeChatId) return;
-    setChatSessions(prev => {
-      if (prev[activeChatId]) return prev;
-      return {
-        ...prev,
-        [activeChatId]: [{
-          role: 'assistant',
-          content: `Hi! I'm **OpsPilot**, your AI Operations Assistant.
+    if (chatSessions[activeChatId]) return;
 
-Ask me about shipments, refunds, inventory, or revenue — or switch to **Agent Mode** to execute governed actions like refunds and discount codes.
+    const genericWelcome = `Hi! I'm **OpsPilot**, your AI Operations Assistant.
 
-What would you like to do?`,
-        }],
-      };
-    });
+Ask me about shipments, refunds, inventory, or revenue — or switch to **Agent Mode** to execute governed actions.
+
+What would you like to do?`;
+
+    const seed = (content: string) =>
+      setChatSessions(prev => (prev[activeChatId] ? prev : { ...prev, [activeChatId]: [{ role: 'assistant', content }] }));
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/briefing');
+        if (!res.ok) throw new Error('briefing failed');
+        const b = await res.json();
+        const lines: string[] = [];
+        if (b.delayed > 0) lines.push(`* 🚚 **${b.delayed} shipment${b.delayed === 1 ? '' : 's'} delayed** — awaiting dispatch.`);
+        if (b.lowStock?.length > 0) {
+          const top = b.lowStock[0];
+          lines.push(`* 📦 **${b.lowStock.length} product${b.lowStock.length === 1 ? '' : 's'} low on stock** — ${top.name} (${top.sku}) down to ${top.inventory} units.`);
+        }
+        if (b.pendingApprovals > 0) lines.push(`* 🛡️ **${b.pendingApprovals} approval${b.pendingApprovals === 1 ? '' : 's'} pending**${b.highRiskApprovals > 0 ? ` (${b.highRiskApprovals} high-risk)` : ''}.`);
+        if (b.openTickets > 0) lines.push(`* 🎫 **${b.openTickets} open support ticket${b.openTickets === 1 ? '' : 's'}**.`);
+
+        if (cancelled) return;
+        if (lines.length === 0) {
+          seed(`Morning! 👋 Everything looks healthy right now — no delays, low-stock alerts, or pending approvals.\n\nWhat would you like to look into?`);
+          return;
+        }
+        seed(`Good to see you 👋 Here's what needs your attention right now:
+
+${lines.join('\n')}
+
+Want me to handle any of these?
+
+Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review pending approvals]`);
+      } catch {
+        if (!cancelled) seed(genericWelcome);
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChatId, hydrated]);
 
   // Drop message stores for conversations that have been deleted.
@@ -353,7 +386,7 @@ What would you like to do?`,
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, mode: currentMode, chatId }),
+        body: JSON.stringify({ messages: history, mode: currentMode, chatId, role }),
         signal: controller.signal,
       });
 
@@ -576,6 +609,10 @@ What would you like to do?`,
 
   // Inline Approval Card execution
   const handleInlineApprove = async (approvalId: string, type: string, isCsv?: boolean) => {
+    if (role !== 'manager') {
+      showToast('Only a Manager can approve governed actions. Switch the role toggle in the sidebar to Manager.', 'warning', 'APPROVAL BLOCKED');
+      return;
+    }
     setProcessingInlineApprovals(prev => ({ ...prev, [approvalId]: 'APPROVING' }));
 
     try {
@@ -690,8 +727,12 @@ What would you like to do?`,
   };
 
   const handleInlineReject = async (approvalId: string) => {
+    if (role !== 'manager') {
+      showToast('Only a Manager can reject governed actions. Switch the role toggle in the sidebar to Manager.', 'warning', 'ACTION BLOCKED');
+      return;
+    }
     setProcessingInlineApprovals(prev => ({ ...prev, [approvalId]: 'REJECTING' }));
-    
+
     try {
       const res = await fetch('/api/approvals/reject', {
         method: 'POST',
@@ -1695,11 +1736,12 @@ What would you like to do?`,
   };
 
   const currentSuggestions = ({
-    'refund-flow': ['Refund Order #ORD-1024', 'Create discount code SORRY25', 'Which products are causing most refunds?'],
-    'inventory-flow': ['List database products', 'Show supplier mappings'],
-    'discount-flow': ['Create discount code promo50 with 50% discount', 'Create discount code VIP10 with 10% discount', 'Show active discount campaigns'],
-    'support-flow': ['Which shipments are delayed?', 'Show Sarah\'s support tickets']
-  } as Record<string, string[]>)[activeChatId] || ['Which shipments are delayed?', 'Which products are causing most refunds?', 'Show inventory status'];
+    'new-chat-session': ['Add 3 new demo products', 'Refund Order #ORD-1024', 'What needs my attention today?'],
+    'refund-flow': ['Refund Order #ORD-1024', 'Create discount code SORRY25 for 25%', 'Which products are causing most refunds?'],
+    'inventory-flow': ['Add 3 new demo products', 'Restock everything below 10 units', 'Show low-stock items'],
+    'discount-flow': ['Create discount code PROMO50 with 50% discount', 'Create discount code VIP10 with 10% discount', 'Show active discount campaigns'],
+    'support-flow': ['What are delayed shipments for today?', "Show Sarah's support tickets"]
+  } as Record<string, string[]>)[activeChatId] || ['Add 3 new demo products', 'Refund Order #ORD-1024', 'What needs my attention today?'];
 
   // Collapsed State Check
   if (!isChatOpen) {

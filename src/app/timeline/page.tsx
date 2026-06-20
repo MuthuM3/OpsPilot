@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, ShieldCheck, CheckCircle2, AlertCircle, Info, Database, ShoppingBag, ArrowUpRight, Tag } from 'lucide-react';
+import { Clock, ShieldCheck, CheckCircle2, AlertCircle, Info, Database, ShoppingBag, ArrowUpRight, Tag, Download } from 'lucide-react';
 import Link from 'next/link';
 
 interface ExecutionEvent {
@@ -39,6 +39,36 @@ export default function TimelinePage() {
 
   const executions = data?.executions || [];
 
+  // Export the full audit trail (one row per event) as a CSV — the tangible
+  // governance artifact a reviewer/auditor can take away.
+  const exportAuditCsv = () => {
+    const esc = (v: string | null | undefined) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ['Execution ID', 'Type', 'Status', 'Started At', 'Completed At', 'Approved By', 'Event Time', 'Event Type', 'Event Message'];
+    const rows: string[] = [header.join(',')];
+    for (const exec of executions) {
+      const base = [exec.id, exec.type, exec.status, exec.startedAt, exec.completedAt ?? '', exec.approval?.approvedBy ?? ''];
+      if (exec.events.length === 0) {
+        rows.push([...base, '', '', ''].map(esc).join(','));
+      } else {
+        for (const ev of exec.events) {
+          rows.push([...base, ev.timestamp, ev.type, ev.message].map(esc).join(','));
+        }
+      }
+    }
+    const blob = new Blob([rows.join('\n') + '\n'], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `opspilot_audit_log_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const getEventIcon = (type: string) => {
     switch (type) {
       case 'SUCCESS':
@@ -55,9 +85,19 @@ export default function TimelinePage() {
   return (
     <div className="p-8 space-y-8 max-w-5xl mx-auto">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Timeline Tracker</h2>
-        <p className="text-xs text-zinc-400 mt-1">Audit log of system executions and governance verification events.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Timeline Tracker</h2>
+          <p className="text-xs text-zinc-400 mt-1">Audit log of system executions and governance verification events.</p>
+        </div>
+        <button
+          onClick={exportAuditCsv}
+          disabled={executions.length === 0}
+          className="self-start px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-purple-300 hover:text-purple-200 text-xs font-semibold flex items-center gap-1.5 transition-all disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <Download className="w-4 h-4" />
+          <span>Export Audit Log (CSV)</span>
+        </button>
       </div>
 
       {isLoading ? (

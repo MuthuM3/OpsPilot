@@ -3,6 +3,11 @@ import { prisma } from '@/lib/db/prisma';
 
 export async function POST() {
   try {
+    // Spread timestamps across the past N days so time-based analytics
+    // ("last month", trends, daily revenue) have realistic data to show.
+    const daysAgo = (d: number) =>
+      new Date(Date.now() - d * 86_400_000 - Math.floor(Math.random() * 86_400_000));
+
     console.log('Clearing database for clean generate...');
     // 1. Delete all existing records
     await prisma.executionEvent.deleteMany({});
@@ -212,12 +217,14 @@ export async function POST() {
 
     console.log('Generating historical refunds for Alice...');
     for (let i = 1; i <= 3; i++) {
+      const refundDate = daysAgo(15 + i * 12); // spread across ~2 months
       const historicalOrder = await prisma.order.create({
         data: {
           orderNumber: `ORD-HIST-${i}`,
           customerId: customers['alice@example.com'].id,
           status: 'REFUNDED',
           totalAmount: 1500.00 * i,
+          createdAt: refundDate,
         },
       });
       await prisma.refund.create({
@@ -228,6 +235,7 @@ export async function POST() {
           status: 'APPROVED',
           riskScore: 10.0 * i,
           riskExplanation: 'Automatic low-risk refund in past.',
+          createdAt: refundDate,
         }
       });
     }
@@ -303,6 +311,7 @@ export async function POST() {
           status,
           totalAmount,
           currency: 'INR',
+          createdAt: daysAgo(Math.floor(Math.random() * 60)),
           items: {
             create: prod1.id !== prod2.id ? [
               { productId: prod1.id, quantity: qty1, price: price1 },

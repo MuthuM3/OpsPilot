@@ -45,7 +45,11 @@ interface WorkspaceContextProps {
   setChatInputPreset: (preset: string) => void;
   activeWorkflow: ActiveWorkflowState;
   setActiveWorkflow: React.Dispatch<React.SetStateAction<ActiveWorkflowState>>;
+  role: UserRole;
+  setRole: (r: UserRole) => void;
 }
+
+export type UserRole = 'manager' | 'operator';
 
 const WorkspaceContext = createContext<WorkspaceContextProps | undefined>(undefined);
 
@@ -70,6 +74,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [chatMode, setChatMode] = useState<'ask' | 'agent'>('agent');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInputPreset, setChatInputPreset] = useState('');
+  const [role, setRole] = useState<UserRole>('manager');
   const [activeWorkflow, setActiveWorkflow] = useState<ActiveWorkflowState>({
     activeObjectType: null,
     activeObjectId: null,
@@ -205,7 +210,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         chatInputPreset,
         setChatInputPreset,
         activeWorkflow,
-        setActiveWorkflow
+        setActiveWorkflow,
+        role,
+        setRole
       }}>
         {children}
 
