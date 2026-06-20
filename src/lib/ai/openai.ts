@@ -2030,17 +2030,22 @@ function buildSystemMessage(
 ): ChatMessage {
   return {
     role: 'system',
-    content: `You are OpsPilot, an AI operations assistant for an e-commerce business.
-You have real-time access to the store database through tool calls.
+    content: `You are OpsPilot, a highly interactive AI operations assistant for an e-commerce business.
+Your goal is to provide a smooth, ChatGPT-like conversational experience with deep context awareness and analytical depth.
 
-Fetching data — ALWAYS call a tool, never guess from memory:
-- Delayed/stuck/overdue shipments → get_shipments(timeframe). Use timeframe="today" for "today", "last_7_days" for "this week", etc. Default "all" = the full backlog.
-- Refunds/returns → get_refunds(timeframe). Orders → get_orders(status, timeframe). Low/out-of-stock → get_inventory(threshold). Catalog → list_products. Tickets → list_tickets. Pending approvals → list_pending_approvals.
-- Extract the timeframe and any status filter from the user's wording and pass them as parameters — do not ignore them.
+Core Operating Guidelines:
+1. **Interactive & Context-Aware**: Always analyze the full chat history. Maintain continuity. If the user asks follow-up questions like "why are they delayed?" or "what about Sarah?", connect it to the preceding turns.
+2. **Explain Data & Database Constraints**: When asked why a shipment is delayed, explain the underlying issues. The database schema lacks carrier details (like tracking numbers, courier names) or warehouse locations. Explain this constraint to the user conversationally if they ask for details not in the schema.
+3. **Inspect Support Tickets**: When analyzing delays, always query customer support tickets using the 'list_tickets' tool to cross-reference customer complaints (e.g., package stuck, damaged in transit) and explain these reasons clearly.
+4. **No Empty Responses or Tool Loops**: Never repeatedly call the same tool in a loop. If a tool doesn't yield the required information or if there is a schema limitation, explain the limitation clearly and suggest next steps.
+5. **Fetching data**: ALWAYS call a tool, never guess from memory:
+   - Delayed/stuck/overdue shipments → get_shipments(timeframe). Use timeframe="today" for "today", "last_7_days" for "this week", etc. Default "all" = the full backlog.
+   - Refunds/returns → get_refunds(timeframe). Orders → get_orders(status, timeframe). Low/out-of-stock → get_inventory(threshold). Catalog → list_products. Tickets → list_tickets. Pending approvals → list_pending_approvals.
+   - Extract the timeframe and any status filter from the user's wording and pass them as parameters.
 
 How to respond:
-- Be direct and conversational — like a sharp analyst talking to a colleague, not a report generator.
-- Do NOT use big headers (###, ####), marketing phrases like "Intent Match: 96%", or template-style formatting.
+- Be direct and conversational — like a sharp analyst talking to a colleague, not a template or report generator. Provide depth, explanations, and insights.
+- Do NOT use big headers (###, ####), marketing phrases like "Intent Match: 96%", or template-style formatting. Use clean markdown formatting.
 - When the user asks to LIST or SHOW something, return the actual records in a clean readable list. State the count, show the items, and ask a follow-up question.
 - When the user asks WHY or to ANALYZE, explain the data in plain prose. Include numbers. Identify the root cause. Give 2-3 concrete recommendations.
 - When the user asks you to DO something (refund, create promo), explain what you're doing and why approval is needed if relevant, then emit [APPROVAL_CARD: ...] or [SWITCH_TO_AGENT_CARD: ...] as required.
@@ -2279,12 +2284,10 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
 
   const { lastMessage, conversationContext, selectedTool, detectedIntent, businessContext, contextPack } = await gatherChatContext(messages, chatId);
 
-  // Fallback to mock if neither API Key nor custom Base URL is set, or if the
-  // endpoint was recently found to be unreachable.
   const hasApiKey = apiKey && apiKey.trim() !== '';
   const hasBaseUrl = baseURL && baseURL.trim() !== '';
 
-  if ((!hasApiKey && !hasBaseUrl) || isEndpointDown()) {
+  if (!hasApiKey && !hasBaseUrl) {
     return handleMockChat(lastMessage, mode, contextPack, chatId);
   }
 
@@ -2355,7 +2358,8 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
     return responseMessage.content || 'Error processing response.';
   } catch (err: any) {
     markEndpointDown(err);
-    return handleMockChat(lastMessage, mode, contextPack, chatId);
+    const errMessage = err?.message ?? String(err);
+    return `⚠️ **LLM Connection Failed**: ${errMessage}\n\n*Please verify that your \`OPENAI_API_KEY\` and \`OPENAI_API_BASE_URL\` are correct.*`;
   }
 }
 
@@ -2376,9 +2380,7 @@ export async function* streamChat(
   const hasApiKey = apiKey && apiKey.trim() !== '';
   const hasBaseUrl = baseURL && baseURL.trim() !== '';
 
-  // No provider configured, or the endpoint is currently known-down →
-  // stream the deterministic mock response immediately (no DNS wait).
-  if ((!hasApiKey && !hasBaseUrl) || isEndpointDown()) {
+  if (!hasApiKey && !hasBaseUrl) {
     const full = await handleMockChat(lastMessage, mode, contextPack, chatId);
     yield* simulateStream(full);
     return;
@@ -2437,8 +2439,9 @@ export async function* streamChat(
     // No tool call: we already have the full content — chunk it for a typing feel.
     yield* simulateStream(responseMessage.content || 'Error processing response.');
   } catch (err: any) {
+    const errMessage = err?.message ?? String(err);
+    logToFile(`[streamChat ERROR] LLM call failed: ${errMessage}. Config: model=${modelName}, baseURL=${baseURL}, hasApiKey=${hasApiKey}`);
     markEndpointDown(err);
-    const full = await handleMockChat(lastMessage, mode, contextPack, chatId);
-    yield* simulateStream(full);
+    yield `⚠️ **LLM Connection Failed**: ${errMessage}\n\n*Please verify that your \`OPENAI_API_KEY\` and \`OPENAI_API_BASE_URL\` are correct.*`;
   }
 }
