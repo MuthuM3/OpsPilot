@@ -773,7 +773,7 @@ What would you like to do?`,
     const cards: React.ReactNode[] = [];
 
     // 1. Check for CSV Mapping Cards
-    const csvRegex = /\[CSV_MAPPING_CARD:\s*(\{.*?\})\s*\]/g;
+    const csvRegex = /\[CSV_MAPPING_CARD:\s*(\{[\s\S]*?\})\s*\](?!\s*[,\]\}])/g;
     let match;
     while ((match = csvRegex.exec(messageContent)) !== null) {
       try {
@@ -860,7 +860,7 @@ What would you like to do?`,
     }
 
     // 2. Check for Approval Cards
-    const approvalRegex = /\[APPROVAL_CARD:\s*(\{.*?\})\s*\]/g;
+    const approvalRegex = /\[APPROVAL_CARD:\s*(\{[\s\S]*?\})\s*\](?!\s*[,\]\}])/g;
     while ((match = approvalRegex.exec(messageContent)) !== null) {
       try {
         const cardData = JSON.parse(match[1]);
