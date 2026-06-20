@@ -2,6 +2,7 @@
 import { OpenAI } from 'openai';
 import { prisma } from '../db/prisma';
 import { evaluateRefundRisk } from '../approvals/engine';
+import { executeApproval, rejectApproval } from '../approvals/execute';
 import { logToFile } from './logger';
 
 // ----------------------------------------------------
@@ -1929,6 +1930,61 @@ const writeTools = [
         required: ['sku', 'newInventory', 'reason']
       }
     }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_product',
+      description: 'Add one or more NEW products to the catalog/inventory. Use this when the user wants to "add products" or create new SKUs (not when updating an existing product\'s stock). Creates a single approval covering all the products.',
+      parameters: {
+        type: 'object',
+        properties: {
+          products: {
+            type: 'array',
+            description: 'The new products to create',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Product name, e.g. "Wireless Mouse"' },
+                price: { type: 'number', description: 'Unit price in INR' },
+                inventory: { type: 'number', description: 'Initial stock quantity' },
+                category: { type: 'string', description: 'Optional category, e.g. "Electronics"' }
+              },
+              required: ['name', 'price', 'inventory']
+            }
+          },
+          reason: { type: 'string', description: 'Reason for adding the products' }
+        },
+        required: ['products']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'approve_request',
+      description: 'Approve a PENDING governance request and execute it immediately (refund, discount, inventory change, or new product). Use when the user says "approve it", "approve the request", "go ahead". If they do not name an id, omit approvalId to approve the most recent pending request.',
+      parameters: {
+        type: 'object',
+        properties: {
+          approvalId: { type: 'string', description: 'The approval id to approve. Omit to approve the most recent pending request.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'reject_request',
+      description: 'Reject a PENDING governance request. Use when the user says "reject it", "decline", "cancel the request". If they do not name an id, omit approvalId to reject the most recent pending request.',
+      parameters: {
+        type: 'object',
+        properties: {
+          approvalId: { type: 'string', description: 'The approval id to reject. Omit to reject the most recent pending request.' },
+          reason: { type: 'string', description: 'Optional reason for rejection' }
+        }
+      }
+    }
   }
 ];
 
@@ -2077,7 +2133,13 @@ ${JSON.stringify(businessContext, null, 2)}
 
 ${mode === 'ask'
   ? `READ-ONLY MODE: Do not perform writes. If the user asks to execute an action, explain they need Agent Mode and append [SWITCH_TO_AGENT_CARD: {"originalRequest": "<their request>"}] at the very end.`
-  : `AGENT MODE: When asked to refund, call request_refund. When asked to create a discount, call create_discount. Append [APPROVAL_CARD: ...] from tool output when approval is required.`}`
+  : `AGENT MODE — pick the right write tool, then append [APPROVAL_CARD: ...] from the tool output:
+  - Refund an order → request_refund.
+  - Create a discount/promo code → create_discount.
+  - ADD NEW product(s) to the catalog ("add products", "create a new SKU") → create_product (pass an array of {name, price, inventory, category?}). Invent sensible demo values if the user says "just for demo".
+  - Change the stock level of an EXISTING product (restock/adjust) → request_inventory_update.
+  - Approve / reject a pending request ("approve it", "reject that") → approve_request / reject_request (omit approvalId to act on the most recent pending one). approve_request executes the action immediately, so confirm the result in plain language afterwards.
+  Never claim something was added/updated/refunded unless the matching tool returned successfully. Requests that need sign-off return an approval the user must approve to take effect.`}`
   };
 }
 
@@ -2313,6 +2375,98 @@ async function executeToolCall(
             riskScore: 35
           });
         }
+      }
+    }
+  } else if (functionName === 'create_product') {
+    const rawProducts = Array.isArray(args.products) ? args.products : [];
+    const valid = rawProducts.filter((p: any) =>
+      p && typeof p.name === 'string' && p.name.trim() &&
+      typeof p.price === 'number' && p.price >= 0 &&
+      typeof p.inventory === 'number' && p.inventory >= 0
+    );
+
+    if (valid.length === 0) {
+      output = JSON.stringify({ error: 'Provide at least one product with a name, a non-negative price, and a non-negative inventory.' });
+    } else {
+      // Generate a unique SKU per product.
+      const products: any[] = [];
+      for (const p of valid) {
+        let sku = '';
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const stub = p.name.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || 'PROD';
+          const candidate = `${stub}-${Math.floor(1000 + Math.random() * 9000)}`;
+          const exists = await prisma.product.findUnique({ where: { sku: candidate } });
+          if (!exists) { sku = candidate; break; }
+        }
+        if (!sku) sku = `PROD-${Date.now().toString().slice(-6)}`;
+        products.push({
+          sku,
+          name: p.name.trim(),
+          price: p.price,
+          inventory: p.inventory,
+          category: typeof p.category === 'string' && p.category.trim() ? p.category.trim() : 'General'
+        });
+      }
+
+      const names = products.map(p => p.name).join(', ');
+      const approval = await prisma.approval.create({
+        data: {
+          type: 'INVENTORY_UPDATE',
+          status: 'PENDING',
+          requestedBy: 'Chat Operator',
+          metadata: {
+            filename: products.length === 1 ? `New product: ${products[0].name}` : `${products.length} new products`,
+            productCount: products.length,
+            isNewProducts: true,
+            products,
+            explanation: `Add ${products.length} new product(s) to the catalog: ${names}.${args.reason ? ` Reason: ${args.reason}` : ''}`
+          }
+        }
+      });
+
+      output = JSON.stringify({
+        status: 'APPROVAL_REQUIRED',
+        approvalId: approval.id,
+        type: 'INVENTORY_UPDATE',
+        productCount: products.length,
+        products,
+        explanation: `Adding ${products.length} new product(s): ${names}. Approve to insert them into the catalog.`,
+        riskScore: 25
+      });
+    }
+  } else if (functionName === 'approve_request' || functionName === 'reject_request') {
+    // Resolve the target approval: explicit id, else the most recent pending one.
+    let approvalId: string | undefined = args.approvalId;
+    if (!approvalId) {
+      const latest = await prisma.approval.findFirst({
+        where: { status: 'PENDING' },
+        orderBy: { createdAt: 'desc' }
+      });
+      approvalId = latest?.id;
+    }
+
+    if (!approvalId) {
+      output = JSON.stringify({ status: 'NONE_PENDING', msg: 'There are no pending approval requests to act on.' });
+    } else {
+      const approval = await prisma.approval.findUnique({ where: { id: approvalId } });
+      const meta = (approval?.metadata as any) || {};
+      const label = approval
+        ? approval.type === 'REFUND_REQUEST' ? `refund of ₹${Number(meta.amount || 0).toLocaleString('en-IN')} for ${meta.orderNumber || 'order'}`
+          : approval.type === 'DISCOUNT_CREATION' ? `discount ${meta.code || ''} (${meta.discountPercent || meta.amount || ''}% off)`
+          : approval.type === 'INVENTORY_UPDATE' ? `inventory change (${meta.productCount || (meta.products?.length ?? 0)} SKU${(meta.productCount || 0) === 1 ? '' : 's'})`
+          : 'request'
+        : 'request';
+
+      if (functionName === 'approve_request') {
+        const result = await executeApproval(approvalId);
+        output = JSON.stringify(result.ok
+          ? { status: 'APPROVED', approvalId, summary: label, executionStatus: result.body.executionStatus, alreadyProcessed: !!result.body.alreadyProcessed }
+          : { status: 'ERROR', approvalId, summary: label, error: result.body.error || 'Execution failed' });
+      } else {
+        const result = await rejectApproval(approvalId, args.reason);
+        output = JSON.stringify(result.ok
+          ? { status: 'REJECTED', approvalId, summary: label, alreadyProcessed: !!result.body.alreadyProcessed }
+          : { status: 'ERROR', approvalId, summary: label, error: result.body.error || 'Rejection failed' });
       }
     }
   }

@@ -146,22 +146,94 @@ export default function InventoryPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Helper to generate a dummy supplier inventory CSV for testing
-  const downloadSampleCsv = () => {
-    const csvContent = 
-      "Supplier Item No.,Product Description,Stock Qty,Cost Rate\n" +
-      "PROD-001,Premium Leather Jacket,50,4800.00\n" +
-      "PROD-002,Wireless Noise-Cancelling Headphones,140,2400.00\n" +
-      "PROD-006,Ultra mechanical keyboard v3,22,2900.00";
-    
+  // Generates a large, deliberately MESSY supplier CSV: non-standard headers
+  // (to exercise the AI column mapper) and dirty values — mixed currency
+  // formats, unit suffixes, junk/blank cells, duplicate SKUs, stray whitespace
+  // (to exercise normalization). Column count stays consistent so it parses.
+  const downloadSampleCsv = (rowCount = 50) => {
+    const rand = (n: number) => Math.floor(Math.random() * n);
+    const pick = <T,>(a: T[]) => a[rand(a.length)];
+    const maybe = (p: number) => Math.random() < p;
+    const cell = (v: string | number) => {
+      const s = String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const adjectives = ['Premium', 'Eco', 'Compact', 'Wireless', 'Heavy-Duty', 'Portable', 'Smart', 'Classic', 'Pro', 'Ultra', 'Deluxe', 'Mini', 'Max', 'Vintage', 'Modern', 'Rugged', 'Slim'];
+    const products = ['Office Chair', 'Desk Lamp', 'Notebook', 'Water Bottle', 'Backpack', 'Mouse', 'Keyboard', 'Monitor Stand', 'Coffee Mug', 'Phone Case', 'Charger', 'Headphones', 'Yoga Mat', 'Sneakers', 'T-Shirt', 'Wallet', 'Sunglasses', 'Umbrella', 'Speaker', 'Webcam', 'Power Bank', 'Stapler', 'Marker Set', 'Desk Organizer', 'Floor Mat', 'Standing Desk', 'Laptop Sleeve', 'USB Cable', 'HDMI Adapter', 'USB-C Hub'];
+    const categories = ['Electronics', 'electronics', 'ELECTRONICS', 'Furniture', 'furniture', 'Stationery', 'Apparel', 'apparel', 'Accessories', 'Home & Kitchen', 'Fitness', '', 'misc'];
+    const suppliers = ['ComfortSeat Co.', 'comfortseat co', 'TechBazaar Pvt Ltd', 'GreenLeaf Supplies', 'Acme Traders', '  Acme Traders ', 'Global Imports', 'Metro Wholesale', 'Sharma & Sons', 'Lotus Distributors', ''];
+
+    const messySku = (i: number) => {
+      const n = 1000 + i;
+      return pick([`PROD-${n}`, `prod_${n}`, `SKU${n}`, `P-${n}`, `${n}`, ` PROD-${n} `, `PROD ${n}`]);
+    };
+    const messyName = () => {
+      let name = `${pick(adjectives)} ${pick(products)}`;
+      if (maybe(0.15)) name = name.toUpperCase();
+      else if (maybe(0.15)) name = name.toLowerCase();
+      if (maybe(0.2)) name = `  ${name}  `;
+      if (maybe(0.12)) name += ' (NEW)';
+      if (maybe(0.1)) name += ', Pack of 2';
+      if (maybe(0.05)) name += ' — limited edition';
+      return name;
+    };
+    const messyPrice = () => {
+      const base = rand(9900) + 99 + Math.random();
+      const r = Math.random();
+      if (r < 0.10) return '';
+      if (r < 0.16) return 'TBD';
+      if (r < 0.22) return '0';
+      if (r < 0.40) return `₹${base.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.00`;
+      if (r < 0.55) return `Rs. ${base.toFixed(0)}`;
+      if (r < 0.68) return `${base.toFixed(0)}/-`;
+      if (r < 0.82) return base.toFixed(2);
+      return base.toFixed(0);
+    };
+    const messyQty = () => {
+      const q = rand(500);
+      const r = Math.random();
+      if (r < 0.10) return '';
+      if (r < 0.16) return 'N/A';
+      if (r < 0.21) return 'out of stock';
+      if (r < 0.26) return `-${rand(10)}`;
+      if (r < 0.34) return `${q} units`;
+      if (r < 0.40) return `${(q / 1000).toFixed(1)}k`;
+      if (r < 0.50) return q.toLocaleString('en-IN');
+      return `${q}`;
+    };
+    const messyDate = () => {
+      const r = Math.random();
+      if (r < 0.2) return '';
+      if (r < 0.4) return `2026-0${1 + rand(6)}-${(1 + rand(28)).toString().padStart(2, '0')}`;
+      if (r < 0.6) return `${1 + rand(28)}/${1 + rand(12)}/2026`;
+      if (r < 0.8) return `${1 + rand(28)}-${pick(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'])}-26`;
+      return 'recently';
+    };
+
+    const headers = ['Item Code ', 'PRODUCT DESCRIPTION', 'Unit Price (Rs.)', 'Qty_OnHand', 'Supplier', 'Category', 'Last Updated'];
+    const lines = [headers.map(cell).join(',')];
+    const usedSkus: string[] = [];
+
+    for (let i = 0; i < rowCount; i++) {
+      let sku: string;
+      if (usedSkus.length > 0 && maybe(0.05)) sku = pick(usedSkus);
+      else { sku = messySku(i); usedSkus.push(sku); }
+
+      const row = [sku, messyName(), messyPrice(), messyQty(), pick(suppliers), pick(categories), messyDate()];
+      lines.push(row.map(cell).join(','));
+    }
+
+    const csvContent = lines.join('\n') + '\n';
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "supplier_messy_inventory.csv");
+    link.setAttribute("download", `messy_inventory_${rowCount}_rows.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -173,7 +245,7 @@ export default function InventoryPage() {
           <p className="text-xs text-zinc-400 mt-1">Upload supplier inventory files and automatically map attributes using AI.</p>
         </div>
         <button
-          onClick={downloadSampleCsv}
+          onClick={() => downloadSampleCsv()}
           className="self-start px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-purple-300 hover:text-purple-200 text-xs font-semibold flex items-center gap-1.5 transition-all"
         >
           <FileText className="w-4 h-4" />

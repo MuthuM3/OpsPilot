@@ -22,3 +22,35 @@
 [2026-06-20T19:08:49.850Z] [API ROUTE] Received request: mode=ask, chatId=chat-1781982150387, messagesCount=2
 [2026-06-20T19:08:49.939Z] [MOCK CHAT] Checking workflow state for chatId=chat-1781982150387, message="what is the today's matrics"
 [2026-06-20T19:08:49.942Z] [MOCK CHAT] activeWorkflow=undefined, workflowState=undefined, metadata={}
+[2026-06-20T19:54:28.504Z] [API ROUTE] Received request: mode=ask, chatId=chat-1781985265464, messagesCount=2
+[2026-06-20T19:54:28.601Z] [streamChat ERROR] LLM call failed: Connection error.. Config: model=deepseek-chat, baseURL=https://neysa-deepseek-v4flash.pipeshift.com/v1, hasApiKey=
+[2026-06-20T19:54:28.607Z] [MOCK CHAT] Checking workflow state for chatId=chat-1781985265464, message="Which shipments are delayed?"
+[2026-06-20T19:54:28.610Z] [MOCK CHAT] activeWorkflow=undefined, workflowState=undefined, metadata={}
+[2026-06-20T19:54:41.846Z] [API ROUTE] Received request: mode=ask, chatId=chat-1781985265464, messagesCount=4
+[2026-06-20T19:54:41.871Z] [MOCK CHAT] Checking workflow state for chatId=chat-1781985265464, message="today's shipments"
+[2026-06-20T19:54:41.874Z] [MOCK CHAT] activeWorkflow=undefined, workflowState=undefined, metadata={}
+[2026-06-20T19:55:09.302Z] [API ROUTE] Received request: mode=ask, chatId=chat-1781985265464, messagesCount=6
+[2026-06-20T19:55:09.318Z] [MOCK CHAT] Checking workflow state for chatId=chat-1781985265464, message="what is the reson for delay"
+[2026-06-20T19:55:09.328Z] [MOCK CHAT] activeWorkflow=undefined, workflowState=undefined, metadata={}
+[2026-06-20T20:00:45.017Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781985640140, messagesCount=2
+[2026-06-20T20:00:45.085Z] [streamChat ERROR] LLM call failed: Connection error.. Config: model=deepseek-chat, baseURL=https://neysa-deepseek-v4flash.pipeshift.com/v1, hasApiKey=
+[2026-06-20T20:17:55.684Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=2
+[2026-06-20T20:19:00.475Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=4
+[2026-06-20T20:19:40.586Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=6
+[2026-06-20T20:20:00.953Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=8
+[2026-06-20T20:20:15.405Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=10
+[2026-06-20T20:20:49.192Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=12
+[2026-06-20T20:21:58.600Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=14
+[2026-06-20T20:33:47.706Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=16
+[2026-06-20T20:34:14.013Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=18
+[2026-06-20T20:34:29.348Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=20
+[2026-06-20T20:34:46.305Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=22
+[2026-06-20T20:36:11.490Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781986634913, messagesCount=24
+[2026-06-20T20:53:21.452Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781988785604, messagesCount=2
+[2026-06-20T20:53:32.195Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781988785604, messagesCount=4
+[2026-06-20T20:54:14.262Z] [API ROUTE] Received request: mode=agent, chatId=chat-1781988785604, messagesCount=6
+[2026-06-20T21:18:35.578Z] [API ROUTE] Received request: mode=ask, chatId=undefined, messagesCount=1
+[2026-06-20T21:43:01.001Z] [API ROUTE] Received request: mode=agent, chatId=undefined, messagesCount=1
+[2026-06-20T21:43:24.171Z] [API ROUTE] Received request: mode=agent, chatId=undefined, messagesCount=1
+[2026-06-20T21:46:28.482Z] [API ROUTE] Received request: mode=agent, chatId=undefined, messagesCount=1
+[2026-06-20T21:46:33.680Z] [API ROUTE] Received request: mode=agent, chatId=undefined, messagesCount=3

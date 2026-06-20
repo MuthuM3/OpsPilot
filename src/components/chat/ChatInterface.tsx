@@ -575,7 +575,7 @@ What would you like to do?`,
   };
 
   // Inline Approval Card execution
-  const handleInlineApprove = async (approvalId: string, type: string) => {
+  const handleInlineApprove = async (approvalId: string, type: string, isCsv?: boolean) => {
     setProcessingInlineApprovals(prev => ({ ...prev, [approvalId]: 'APPROVING' }));
 
     try {
@@ -602,14 +602,23 @@ What would you like to do?`,
 
       // 1. Set the initial steps state (6-step detailed plan)
       const steps = type === 'INVENTORY_UPDATE'
-        ? [
-            'Validate CSV Schema',
-            'Check Data Consistency',
-            'Approval Granted',
-            'Upsert Products in Database',
-            'Sync Shopify Inventory',
-            'Log Sync Transaction'
-          ]
+        ? (isCsv
+          ? [
+              'Validate CSV Schema',
+              'Check Data Consistency',
+              'Approval Granted',
+              'Upsert Products in Database',
+              'Sync Shopify Inventory',
+              'Log Sync Transaction'
+            ]
+          : [
+              'Validate SKU Details',
+              'Verify Price Match',
+              'Approval Granted',
+              'Update Stock in Database',
+              'Sync Shopify Inventory',
+              'Log Sync Transaction'
+            ])
         : type === 'DISCOUNT_CREATION'
         ? [
             'Validate Request',
@@ -996,7 +1005,7 @@ What would you like to do?`,
                     <p className="italic text-zinc-400">"{approvalState.error}"</p>
                   </div>
                   <button
-                    onClick={() => handleInlineApprove(cardData.id, cardData.type)}
+                    onClick={() => handleInlineApprove(cardData.id, cardData.type, !!cardData.uploadId)}
                     className="w-full py-1.5 rounded-lg bg-purple-650 hover:bg-purple-600 text-[10px] font-bold text-white transition-all flex items-center justify-center gap-1 shadow-md shadow-purple-650/10 cursor-pointer"
                   >
                     <span>Retry Execution</span>
@@ -1017,7 +1026,9 @@ What would you like to do?`,
         } else {
           const isWhyOpen = !!showApprovalWhy[cardData.id];
           const blockedSteps = cardData.type === 'INVENTORY_UPDATE'
-            ? ['Validate CSV Schema', 'Check Data Consistency', 'Waiting Approval', 'Upsert Products in Database', 'Sync Shopify Inventory', 'Log Sync Transaction']
+            ? (cardData.uploadId
+              ? ['Validate CSV Schema', 'Check Data Consistency', 'Waiting Approval', 'Upsert Products in Database', 'Sync Shopify Inventory', 'Log Sync Transaction']
+              : ['Validate SKU Details', 'Verify Price Match', 'Waiting Approval', 'Update Stock in Database', 'Sync Shopify Inventory', 'Log Sync Transaction'])
             : cardData.type === 'DISCOUNT_CREATION'
             ? ['Validate Request', 'Check Coupon Velocity', 'Waiting Approval', 'Deploy Coupon Rules', 'Notify Marketing Admin', 'Update Promotion Database']
             : ['Validate Order', 'Check Eligibility', 'Waiting Approval', 'Create Refund', 'Notify Customer', 'Update Ticket'];
@@ -1171,14 +1182,14 @@ What would you like to do?`,
                   )}
                 </button>
                 <button
-                  onClick={() => handleInlineApprove(cardData.id, cardData.type)}
+                  onClick={() => handleInlineApprove(cardData.id, cardData.type, !!cardData.uploadId)}
                   disabled={!!processingInlineApprovals[cardData.id]}
                   className="py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] font-bold text-white transition-all flex items-center justify-center gap-1 shadow-md shadow-purple-650/10 cursor-pointer disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]"
                 >
                   {processingInlineApprovals[cardData.id] === 'APPROVING' ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin animate-infinite duration-1000" />
-                      <span>Executing...</span>
+                      <span>{!!cardData.uploadId ? 'Processing CSV...' : 'Executing...'}</span>
                     </>
                   ) : (
                     <>
