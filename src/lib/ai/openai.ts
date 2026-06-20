@@ -1913,6 +1913,22 @@ const writeTools = [
         required: ['code', 'discountPercent', 'reason']
       }
     }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'request_inventory_update',
+      description: 'Request to update a product\'s inventory level (e.g. for restocking or adjustment). Creates an approval request.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sku: { type: 'string', description: 'The product SKU to update, e.g. PROD-003' },
+          newInventory: { type: 'number', description: 'The new total inventory stock level (target value)' },
+          reason: { type: 'string', description: 'Reason for the inventory update' }
+        },
+        required: ['sku', 'newInventory', 'reason']
+      }
+    }
   }
 ];
 
@@ -2201,6 +2217,61 @@ async function executeToolCall(
         msg: 'Discount code created successfully.'
       });
     }
+  } else if (functionName === 'request_inventory_update') {
+    const sku = args.sku?.toUpperCase();
+    const product = await prisma.product.findUnique({
+      where: { sku: sku }
+    });
+
+    if (!product) {
+      output = JSON.stringify({ error: `Product with SKU ${sku} not found.` });
+    } else {
+      const newInventory = args.newInventory;
+      const currentInventory = product.inventory;
+      const price = Number(product.price);
+      
+      const approval = await prisma.approval.create({
+        data: {
+          type: 'INVENTORY_UPDATE',
+          status: 'PENDING',
+          requestedBy: 'System Auto-Risk',
+          metadata: {
+            filename: `Restock SKU ${sku}`,
+            productCount: 1,
+            products: [
+              {
+                sku: sku,
+                name: product.name,
+                price: price,
+                inventory: newInventory
+              }
+            ],
+            explanation: `Request to update inventory for ${product.name} (SKU: ${sku}) from ${currentInventory} to ${newInventory} units.`
+          }
+        }
+      });
+
+      output = JSON.stringify({
+        status: 'APPROVAL_REQUIRED',
+        approvalId: approval.id,
+        type: 'INVENTORY_UPDATE',
+        sku: sku,
+        productName: product.name,
+        currentInventory: currentInventory,
+        newInventory: newInventory,
+        productCount: 1,
+        products: [
+          {
+            sku: sku,
+            name: product.name,
+            price: price,
+            inventory: newInventory
+          }
+        ],
+        explanation: `Manual restock requested for ${product.name} (SKU: ${sku}) to increase stock from ${currentInventory} to ${newInventory} units.`,
+        riskScore: 35
+      });
+    }
   }
   return output;
 }
@@ -2227,7 +2298,9 @@ function buildApprovalCardAppends(toolOutputs: any[]): string {
       amount: data.amount,
       code: data.code,
       riskScore: data.riskScore,
-      explanation: data.explanation
+      explanation: data.explanation,
+      productCount: data.productCount,
+      products: data.products
     };
     appended += `\n\n[APPROVAL_CARD: ${JSON.stringify(cardPayload)}]`;
   }
