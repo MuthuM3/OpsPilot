@@ -897,46 +897,64 @@ What would you like to do?`,
                 </span>
               </div>
 
-              <div className="space-y-2 pl-2">
+              <div className="space-y-0 pl-1">
                 {approvalState.steps.map((step, idx) => {
                   const isPending = idx > approvalState.currentStepIndex;
                   const isRunning = idx === approvalState.currentStepIndex && approvalState.status === 'APPROVED';
                   const isFailed = idx === approvalState.currentStepIndex && approvalState.status === 'FAILED';
                   const isCompleted = idx < approvalState.currentStepIndex || (idx === approvalState.currentStepIndex && approvalState.status === 'APPROVED' && isSuccess);
+                  const isRejected = approvalState.status === 'REJECTED';
 
                   return (
-                    <div
-                      key={idx}
-                      className={`text-[10px] flex items-center justify-between transition-all ${
-                        isPending ? 'text-zinc-655 opacity-40' : isRunning ? 'text-purple-400 animate-pulse font-medium' : isFailed ? 'text-rose-405 font-bold' : 'text-zinc-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {isPending ? (
-                          <div className="h-3.5 w-3.5 rounded border border-zinc-800 shrink-0 text-[8px] font-bold flex items-center justify-center text-zinc-650">□</div>
-                        ) : isRunning ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-450 shrink-0" />
-                        ) : isFailed ? (
-                          <div className="w-3.5 h-3.5 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
-                            <X className="w-2.5 h-2.5 text-rose-400" />
-                          </div>
-                        ) : isCompleted ? (
-                          <div className="w-3.5 h-3.5 rounded-full bg-emerald-550/15 border border-emerald-550/30 flex items-center justify-center shrink-0">
+                    <div key={idx} className="flex gap-3 text-[10px] relative">
+                      {/* Left Timeline Indicator */}
+                      <div className="flex flex-col items-center shrink-0">
+                        {isCompleted ? (
+                          <div className="w-4 h-4 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
                             <Check className="w-2.5 h-2.5 text-emerald-450" />
                           </div>
-                        ) : (
-                          // Rejected state
-                          <div className="w-3.5 h-3.5 rounded-full bg-rose-550/15 border border-rose-550/30 flex items-center justify-center shrink-0">
+                        ) : isRunning ? (
+                          <div className="w-4 h-4 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center">
+                            <Loader2 className="w-2.5 h-2.5 animate-spin text-purple-400" />
+                          </div>
+                        ) : isFailed ? (
+                          <div className="w-4 h-4 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center">
+                            <X className="w-2.5 h-2.5 text-rose-400" />
+                          </div>
+                        ) : isRejected && idx === approvalState.currentStepIndex ? (
+                          <div className="w-4 h-4 rounded-full bg-rose-500/15 border border-rose-550/30 flex items-center justify-center">
                             <X className="w-2.5 h-2.5 text-rose-455" />
                           </div>
+                        ) : (
+                          <div className="w-4 h-4 flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full border border-zinc-700 bg-zinc-950" />
+                          </div>
                         )}
-                        <span>{step}</span>
+                        
+                        {idx < approvalState.steps.length - 1 && (
+                          <div className={`w-[1px] h-3 my-0.5 ${isCompleted ? 'bg-emerald-500/20' : 'bg-zinc-800/60'}`} />
+                        )}
                       </div>
-                      {!isPending && !isRunning && !isFailed && (
-                        <span className="text-zinc-500 font-mono text-[8px] bg-zinc-900 px-1 py-0.5 rounded border border-zinc-800/40 shrink-0">
-                          {timestamps[idx] || '10:01'}
+                      
+                      {/* Right Text Content & Timestamp */}
+                      <div className="pt-0.5 pb-2.5 flex-1 min-w-0 flex justify-between items-start gap-2">
+                        <span className={`leading-snug break-words ${
+                          isPending 
+                            ? 'text-zinc-550 opacity-50' 
+                            : isRunning 
+                            ? 'text-purple-400 animate-pulse font-medium' 
+                            : isFailed 
+                            ? 'text-rose-405 font-bold' 
+                            : 'text-zinc-350 font-medium'
+                        }`}>
+                          {step}
                         </span>
-                      )}
+                        {!isPending && !isRunning && !isFailed && (
+                          <span className="text-zinc-500 font-mono text-[8px] bg-zinc-955 px-1 py-0.5 rounded border border-zinc-800/40 shrink-0 mt-0.5">
+                            {timestamps[idx] || '10:01'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1005,24 +1023,26 @@ What would you like to do?`,
             : ['Validate Order', 'Check Eligibility', 'Waiting Approval', 'Create Refund', 'Notify Customer', 'Update Ticket'];
 
           cards.push(
-            <div key={`approval-${cardData.id}`} className="mt-4 p-4 rounded-xl border border-zinc-800 bg-[#0f1422] space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-800/40">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Governance Check Required</span>
-                </span>
-                <div className="flex gap-1.5 items-center">
+            <div key={`approval-${cardData.id}`} className="mt-4 p-4 rounded-xl border border-zinc-800 border-l-4 border-l-amber-500/70 bg-[#0b0f19]/95 space-y-4 backdrop-blur-sm shadow-xl shadow-purple-950/5">
+              <div className="pb-3 border-b border-zinc-800/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Governance Check Required</span>
+                  </span>
                   <button
                     onClick={() => setShowApprovalWhy(prev => ({ ...prev, [cardData.id]: !prev[cardData.id] }))}
-                    className="px-1.5 py-0.5 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 font-bold text-[8.5px] transition-all flex items-center gap-1 cursor-pointer border border-purple-500/20"
+                    className="px-2 py-0.5 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 font-bold text-[8.5px] transition-all flex items-center gap-1 cursor-pointer border border-purple-500/20 active:scale-[0.95]"
                   >
                     Why?
                   </button>
-                  <span className="text-[9px] bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded font-bold">
+                </div>
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-[8.5px] bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded font-bold border border-purple-500/10">
                     Intent Match: 96%
                   </span>
                   {cardData.riskScore !== undefined && (
-                    <span className="text-[9px] bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded font-bold">
+                    <span className="text-[8.5px] bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded font-bold border border-rose-500/10">
                       Risk Score: {cardData.riskScore}/100
                     </span>
                   )}
@@ -1030,58 +1050,82 @@ What would you like to do?`,
               </div>
 
               <div className="text-[11px] space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Operation Type:</span>
-                  <span className="font-semibold text-zinc-300">
-                    {cardData.type === 'INVENTORY_UPDATE' ? 'Sync Inventory' : cardData.type === 'DISCOUNT_CREATION' ? 'Create Coupon' : 'Order Refund'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Details:</span>
-                  <span className="font-semibold text-zinc-200">
-                    {cardData.type === 'INVENTORY_UPDATE'
-                      ? `${cardData.productCount} SKU updates mapped`
-                      : cardData.type === 'DISCOUNT_CREATION'
-                      ? `Coupon ${cardData.code} (${cardData.amount}% Off)`
-                      : `₹${cardData.amount?.toLocaleString('en-IN')} Payout`}
-                  </span>
+                <div className="grid grid-cols-2 gap-2.5 p-2.5 rounded-lg bg-zinc-955/45 border border-zinc-800/40">
+                  <div className="space-y-0.5">
+                    <span className="text-[9px] text-zinc-500 font-medium uppercase tracking-wider block">Operation Type</span>
+                    <span className="text-[11.5px] font-semibold text-zinc-200 block leading-tight">
+                      {cardData.type === 'INVENTORY_UPDATE' ? 'Sync Inventory' : cardData.type === 'DISCOUNT_CREATION' ? 'Create Coupon' : 'Order Refund'}
+                    </span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-[9px] text-zinc-500 font-medium uppercase tracking-wider block">Details</span>
+                    <span className="text-[11.5px] font-semibold text-zinc-200 block leading-tight break-words">
+                      {cardData.type === 'INVENTORY_UPDATE'
+                        ? `${cardData.productCount} SKU updates mapped`
+                        : cardData.type === 'DISCOUNT_CREATION'
+                        ? `Coupon ${cardData.code} (${cardData.amount}% Off)`
+                        : `₹${cardData.amount?.toLocaleString('en-IN')} Payout`}
+                    </span>
+                  </div>
                 </div>
 
                 {isWhyOpen && cardData.explanation && (
-                  <div className="p-2.5 rounded bg-zinc-950/30 border border-zinc-800/40 text-[10px] italic text-zinc-400 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="p-2.5 rounded bg-zinc-950/30 border border-zinc-800/40 text-[10px] italic text-zinc-450 animate-in fade-in slide-in-from-top-1 duration-200 leading-normal">
                     "{cardData.explanation}"
                   </div>
                 )}
 
                 {/* Blocked Execution Plan */}
-                <div className="border-t border-zinc-800/40 pt-3 space-y-2">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 block">
+                <div className="border-t border-zinc-800/40 pt-3.5 space-y-3">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 block px-1">
                     Blocked Execution Plan
                   </span>
-                  <div className="space-y-1.5 pl-2">
+                  <div className="space-y-0 pl-1">
                     {blockedSteps.map((step, idx) => {
-                      if (idx < 2) {
-                        return (
-                          <div key={idx} className="flex items-center gap-2 text-[10px] text-emerald-450 font-medium">
-                            <div className="w-3.5 h-3.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                              <Check className="w-2.5 h-2.5 text-emerald-400" />
-                            </div>
-                            <span>{step}</span>
-                          </div>
-                        );
-                      }
-                      if (idx === 2) {
-                        return (
-                          <div key={idx} className="flex items-center gap-2 text-[10px] text-purple-400 font-bold animate-pulse">
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
-                            <span>{step} (Awaiting Manager Sign-off)</span>
-                          </div>
-                        );
-                      }
+                      const isCompleted = idx < 2;
+                      const isRunning = idx === 2;
+                      const isPending = idx > 2;
+
                       return (
-                        <div key={idx} className="flex items-center gap-2 text-[10px] text-zinc-650 opacity-40">
-                          <div className="h-3.5 w-3.5 rounded border border-zinc-800 shrink-0 flex items-center justify-center text-[8px] font-bold text-zinc-600">□</div>
-                          <span>{step}</span>
+                        <div key={idx} className="flex gap-3 text-[10px] relative">
+                          {/* Left Timeline Indicator */}
+                          <div className="flex flex-col items-center shrink-0">
+                            {isCompleted ? (
+                              <div className="w-4 h-4 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                                <Check className="w-2.5 h-2.5 text-emerald-455" />
+                              </div>
+                            ) : isRunning ? (
+                              <div className="w-4 h-4 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center">
+                                <Loader2 className="w-2.5 h-2.5 animate-spin text-purple-450" />
+                              </div>
+                            ) : (
+                              <div className="w-4 h-4 flex items-center justify-center">
+                                <div className="w-1.5 h-1.5 rounded-full border border-zinc-700 bg-zinc-950" />
+                              </div>
+                            )}
+                            
+                            {idx < blockedSteps.length - 1 && (
+                              <div className={`w-[1px] h-3 my-0.5 ${isCompleted ? 'bg-emerald-500/20' : 'bg-zinc-800/60'}`} />
+                            )}
+                          </div>
+                          
+                          {/* Right Text Content */}
+                          <div className="pt-0.5 pb-2.5 flex-1 min-w-0">
+                            <p className={`text-[10px] leading-snug break-words ${
+                              isCompleted 
+                                ? 'text-emerald-455 font-medium' 
+                                : isRunning 
+                                ? 'text-purple-400 font-bold animate-pulse' 
+                                : 'text-zinc-550 opacity-50'
+                            }`}>
+                              {step}
+                              {isRunning && (
+                                <span className="text-[8px] font-normal text-purple-405/90 ml-1.5 bg-purple-500/5 px-1.5 py-0.5 rounded border border-purple-500/10 inline-block align-middle">
+                                  Awaiting Manager Sign-off
+                                </span>
+                              )}
+                            </p>
+                          </div>
                         </div>
                       );
                     })}
@@ -1090,8 +1134,8 @@ What would you like to do?`,
 
                 {/* Governance Insight & Memory */}
                 {isWhyOpen && (
-                  <div className="p-2.5 rounded bg-[#090e18] border border-zinc-800/60 space-y-1.5 text-[10px] animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div className="flex justify-between text-zinc-400">
+                  <div className="p-2.5 rounded bg-[#090e18]/80 border border-zinc-800/60 space-y-1.5 text-[10px] animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="flex justify-between text-zinc-400 items-center">
                       <span className="font-semibold text-zinc-300">Why was this flagged?</span>
                       <span className="text-[9px] bg-rose-500/10 text-rose-400 px-1 py-0.5 rounded font-mono font-bold">Policy Breach</span>
                     </div>
@@ -1112,7 +1156,7 @@ What would you like to do?`,
                 <button
                   onClick={() => handleInlineReject(cardData.id)}
                   disabled={!!processingInlineApprovals[cardData.id]}
-                  className="py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[10px] font-bold text-zinc-400 hover:text-zinc-200 transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                  className="py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[10px] font-bold text-zinc-450 hover:text-zinc-200 transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]"
                 >
                   {processingInlineApprovals[cardData.id] === 'REJECTING' ? (
                     <>
@@ -1129,7 +1173,7 @@ What would you like to do?`,
                 <button
                   onClick={() => handleInlineApprove(cardData.id, cardData.type)}
                   disabled={!!processingInlineApprovals[cardData.id]}
-                  className="py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] font-bold text-white transition-all flex items-center justify-center gap-1 shadow-md shadow-purple-650/10 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                  className="py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] font-bold text-white transition-all flex items-center justify-center gap-1 shadow-md shadow-purple-650/10 cursor-pointer disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]"
                 >
                   {processingInlineApprovals[cardData.id] === 'APPROVING' ? (
                     <>
