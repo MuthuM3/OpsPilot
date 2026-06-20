@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react/no-unescaped-entities */
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -124,6 +125,7 @@ export default function ChatInterface() {
   const isResizing = useRef(false);
   
   const [input, setInput] = useState('');
+  const [showCommandMenu, setShowCommandMenu] = useState(false);
   
   // Custom states for running inline timelines
   const [completedApprovals, setCompletedApprovals] = useState<Record<string, { 
@@ -1192,7 +1194,7 @@ What would you like to do?`,
         const state = cardData.workflowState; // 'draft' | 'review' | 'approval_required' | 'completed'
         const meta = cardData.metadata || {};
 
-        const steps = type === 'discount' 
+        const steps = (type === 'discount' || type === 'product')
           ? [
               { key: 'draft', label: 'Draft' },
               { key: 'review', label: 'Review' },
@@ -1214,7 +1216,9 @@ What would you like to do?`,
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
                 <span className="text-[11px] text-zinc-200 font-bold uppercase tracking-wider">
-                  {type === 'discount' ? `Discount Campaign: ${meta.code || 'Draft'}` : `Refund Campaign: ${meta.orderNumber || 'Draft'}`}
+                  {type === 'discount' ? `Discount Campaign: ${meta.code || 'Draft'}` : 
+                   type === 'product' ? `Product Creation: ${meta.name || 'Draft'}` :
+                   `Refund Campaign: ${meta.orderNumber || 'Draft'}`}
                 </span>
               </div>
               <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide ${
@@ -1233,7 +1237,7 @@ What would you like to do?`,
                 const isCurrent = idx === activeIdx;
                 return (
                   <React.Fragment key={step.key}>
-                    <div className="flex flex-col items-center space-y-1">
+                    <div className="flex flex-col items-center shrink-0 space-y-1">
                       <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold border transition-colors ${
                         isPassed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
                         isCurrent ? 'bg-purple-650 border-purple-500 text-white shadow-[0_0_8px_rgba(147,51,234,0.5)]' :
@@ -1241,7 +1245,7 @@ What would you like to do?`,
                       }`}>
                         {isPassed ? '✓' : idx + 1}
                       </div>
-                      <span className={`text-[8px] font-bold ${
+                      <span className={`text-[7.5px] sm:text-[8px] font-bold whitespace-nowrap leading-none mt-1 ${
                         isCurrent ? 'text-purple-400' : 
                         isPassed ? 'text-emerald-400' : 
                         'text-zinc-500'
@@ -1250,7 +1254,7 @@ What would you like to do?`,
                       </span>
                     </div>
                     {idx < steps.length - 1 && (
-                      <div className={`flex-1 h-[2px] mx-2 ${
+                      <div className={`flex-1 min-w-[4px] h-[2px] mx-1 sm:mx-2 ${
                         idx < activeIdx ? 'bg-emerald-500/30' : 'bg-zinc-800'
                       }`} />
                     )}
@@ -1276,7 +1280,7 @@ What would you like to do?`,
                     ) : (
                       <div className="w-3.5 h-3.5 rounded border border-zinc-805 flex items-center justify-center text-[8px] text-zinc-600 font-bold shrink-0">□</div>
                     )}
-                    <span className="text-zinc-400">Expiry Date: {meta.expiry ? <strong className="text-zinc-200">{meta.expiry}</strong> : <span className="text-zinc-600 italic">Not set</span>}</span>
+                    <span className="text-zinc-400">Expiry Date: {meta.expiry ? <strong className="text-zinc-200">{meta.expiry}</strong> : <span className="text-zinc-650 italic">Not set</span>}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {meta.segment ? (
@@ -1284,7 +1288,30 @@ What would you like to do?`,
                     ) : (
                       <div className="w-3.5 h-3.5 rounded border border-zinc-805 flex items-center justify-center text-[8px] text-zinc-600 font-bold shrink-0">□</div>
                     )}
-                    <span className="text-zinc-400">Target Segment: {meta.segment ? <strong className="text-zinc-200">{meta.segment}</strong> : <span className="text-zinc-650 italic">All customers</span>}</span>
+                    <span className="text-zinc-400">Target Segment: {meta.segment ? <strong className="text-zinc-200">{meta.segment}</strong> : <span className="text-zinc-655 italic">All customers</span>}</span>
+                  </div>
+                </div>
+              ) : type === 'product' ? (
+                <div className="space-y-1.5 pl-1">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-450 shrink-0" />
+                    <span className="text-zinc-400">Product Name: <strong className="text-zinc-200">{meta.name}</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {meta.price !== null && meta.price !== undefined ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-450 shrink-0" />
+                    ) : (
+                      <div className="w-3.5 h-3.5 rounded border border-zinc-805 flex items-center justify-center text-[8px] text-zinc-600 font-bold shrink-0">□</div>
+                    )}
+                    <span className="text-zinc-400">Price: {meta.price !== null && meta.price !== undefined ? <strong className="text-zinc-200">₹{Number(meta.price).toLocaleString('en-IN')}</strong> : <span className="text-zinc-650 italic">Price required</span>}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {meta.stock !== null && meta.stock !== undefined ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-450 shrink-0" />
+                    ) : (
+                      <div className="w-3.5 h-3.5 rounded border border-zinc-805 flex items-center justify-center text-[8px] text-zinc-600 font-bold shrink-0">□</div>
+                    )}
+                    <span className="text-zinc-400">Initial Stock: {meta.stock !== null && meta.stock !== undefined ? <strong className="text-zinc-200">{meta.stock} units</strong> : <span className="text-zinc-650 italic">Stock count required</span>}</span>
                   </div>
                 </div>
               ) : (
@@ -1331,9 +1358,34 @@ What would you like to do?`,
                 {meta.actions.includes('Publish') && (
                   <button
                     onClick={() => handleSend('Publish')}
-                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] text-white font-bold flex items-center gap-1.5 transition-all shadow-md shadow-purple-650/15 cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] text-white font-bold flex items-center gap-1.5 transition-all shadow-md shadow-purple-655/15 cursor-pointer"
                   >
                     <span>Publish Campaign</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {meta.actions.includes('Set Price') && (
+                  <button
+                    onClick={() => handleSend('Set price to ₹1,500')}
+                    className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[10px] text-zinc-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <span>Set Price: ₹1,500</span>
+                  </button>
+                )}
+                {meta.actions.includes('Set Stock') && (
+                  <button
+                    onClick={() => handleSend('Set stock to 100')}
+                    className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[10px] text-zinc-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <span>Set Stock: 100</span>
+                  </button>
+                )}
+                {meta.actions.includes('Publish Product') && (
+                  <button
+                    onClick={() => handleSend('Publish Product')}
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] text-white font-bold flex items-center gap-1.5 transition-all shadow-md shadow-purple-655/15 cursor-pointer"
+                  >
+                    <span>Publish Product</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -1348,7 +1400,7 @@ What would you like to do?`,
                 {meta.actions.includes('Submit Refund') && (
                   <button
                     onClick={() => handleSend('Submit Refund')}
-                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] text-white font-bold flex items-center gap-1.5 transition-all shadow-md shadow-purple-650/15 cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] text-white font-bold flex items-center gap-1.5 transition-all shadow-md shadow-purple-655/15 cursor-pointer"
                   >
                     <span>Submit Refund</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -1383,24 +1435,43 @@ What would you like to do?`,
     }
 
     // Parse out dynamic Suggested Actions
-    const actionRegex = /\[([^\]]+)\]/g;
-    let dynamicActions: string[] = [];
+    const dynamicActions: string[] = [];
     
     const suggestedActionsIndex = textOnly.toLowerCase().indexOf('suggested actions:');
-    const suggestionsIndex = suggestedActionsIndex;
-    
-    if (suggestionsIndex !== -1) {
-      const suggestionsText = textOnly.substring(suggestionsIndex);
+    if (suggestedActionsIndex !== -1) {
+      const actionRegex = /\[([^\]]+)\]/g;
+      const suggestionsText = textOnly.substring(suggestedActionsIndex);
       let match;
       while ((match = actionRegex.exec(suggestionsText)) !== null) {
         const actionLabel = match[1].trim();
-        // Skip internal metadata cards
         if (actionLabel && !actionLabel.includes('_CARD') && !actionLabel.startsWith('http') && actionLabel.length < 35) {
           dynamicActions.push(actionLabel);
         }
       }
-      // Remove suggestions block from visible text since we render them as custom buttons
-      textOnly = textOnly.substring(0, suggestionsIndex).trim();
+      textOnly = textOnly.substring(0, suggestedActionsIndex).trim();
+    } else {
+      // Look for trailing action chips at the end of the text (e.g. [Notify Operations Manager] [Create SLA Report])
+      while (textOnly.trim().endsWith(']')) {
+        const trimmed = textOnly.trim();
+        const lastBracketOpenIdx = trimmed.lastIndexOf('[');
+        if (lastBracketOpenIdx !== -1) {
+          const possibleLabel = trimmed.substring(lastBracketOpenIdx + 1, trimmed.length - 1).trim();
+          if (
+            possibleLabel && 
+            !possibleLabel.includes('\n') && 
+            !possibleLabel.includes('_CARD') && 
+            !possibleLabel.startsWith('http') && 
+            possibleLabel.length < 40
+          ) {
+            dynamicActions.unshift(possibleLabel);
+            textOnly = trimmed.substring(0, lastBracketOpenIdx).trim();
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
     }
 
     const lines = textOnly.split('\n');
@@ -1507,18 +1578,23 @@ What would you like to do?`,
         {blocks}
 
         {dynamicActions.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-zinc-800/40 space-y-2">
-            <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-550 block">
-              Suggested Operational Actions
-            </span>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="mt-3 pt-3 border-t border-zinc-800/40 space-y-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse shrink-0" />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-550">
+                Suggested Operational Actions
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
               {dynamicActions.map((action) => (
                 <button
                   key={action}
                   onClick={() => handleNextActionClick(action)}
-                  className="px-2.5 py-1 rounded bg-purple-950/20 hover:bg-purple-900/30 border border-purple-500/20 hover:border-purple-500/50 text-purple-300 hover:text-white text-[9px] transition-all cursor-pointer font-medium active:scale-[0.97]"
+                  className="group flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-500/10 to-sky-500/10 hover:from-purple-500/20 hover:to-sky-500/20 border border-purple-500/20 hover:border-purple-500/40 text-purple-300 hover:text-white text-[10px] transition-all cursor-pointer font-semibold shadow-md shadow-purple-950/10 active:scale-[0.95]"
                 >
-                  {action}
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400 group-hover:animate-pulse" />
+                  <span>{action}</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-zinc-500 group-hover:translate-x-0.5 group-hover:text-zinc-300 transition-all" />
                 </button>
               ))}
             </div>
@@ -1617,68 +1693,68 @@ What would you like to do?`,
 
       {/* Business Context Panel */}
       {!isStreaming && ['refund-flow', 'inventory-flow', 'discount-flow', 'support-flow'].includes(activeChatId) && (
-        <div className="px-4 py-2 border-b border-zinc-800/50 bg-[#0c1220]/45 flex items-center justify-between text-[10px] shrink-0 animate-in slide-in-from-top-1">
+        <div className="px-4 py-2 border-b border-zinc-800/50 bg-[#0c1220]/45 flex flex-wrap items-center justify-between gap-y-1.5 gap-x-3 text-[10px] shrink-0 animate-in slide-in-from-top-1">
           {activeChatId === 'refund-flow' && (
             <>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
-                <span className="text-zinc-400">Context: <strong>Alice Smith</strong></span>
-                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px]">VIP Tier</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
+                <span className="text-zinc-400 whitespace-nowrap">Context: <strong className="text-zinc-200">Alice Smith</strong></span>
+                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px] whitespace-nowrap">VIP Tier</span>
               </div>
-              <div className="flex items-center gap-3 text-zinc-500">
-                <span>Orders: <strong>12</strong></span>
+              <div className="flex items-center gap-2 text-zinc-500 whitespace-nowrap">
+                <span>Orders: <strong className="text-zinc-300">12</strong></span>
                 <span>•</span>
-                <span>Refunds: <strong>3</strong></span>
+                <span>Refunds: <strong className="text-zinc-300">3</strong></span>
                 <span>•</span>
-                <span>Tickets: <strong>1</strong></span>
+                <span>Tickets: <strong className="text-zinc-300">1</strong></span>
               </div>
             </>
           )}
           {activeChatId === 'inventory-flow' && (
             <>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
-                <span className="text-zinc-400">Sync Agent: <strong>Supplier Feeds</strong></span>
-                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px]">Active</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
+                <span className="text-zinc-400 whitespace-nowrap">Sync Agent: <strong className="text-zinc-200">Supplier Feeds</strong></span>
+                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px] whitespace-nowrap">Active</span>
               </div>
-              <div className="flex items-center gap-3 text-zinc-500">
-                <span>SKUs: <strong>18</strong></span>
+              <div className="flex items-center gap-2 text-zinc-500 whitespace-nowrap">
+                <span>SKUs: <strong className="text-zinc-300">18</strong></span>
                 <span>•</span>
-                <span>Integrations: <strong>Shopify</strong></span>
+                <span>Integrations: <strong className="text-zinc-300">Shopify</strong></span>
                 <span>•</span>
-                <span>Format: <strong>CSV</strong></span>
+                <span>Format: <strong className="text-zinc-300">CSV</strong></span>
               </div>
             </>
           )}
           {activeChatId === 'discount-flow' && (
             <>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
-                <span className="text-zinc-400">Context: <strong>Promotions Agent</strong></span>
-                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px]">Active</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
+                <span className="text-zinc-400 whitespace-nowrap">Context: <strong className="text-zinc-200">Promotions Agent</strong></span>
+                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px] whitespace-nowrap">Active</span>
               </div>
-              <div className="flex items-center gap-3 text-zinc-500">
-                <span>Safe Threshold: <strong>20%</strong></span>
+              <div className="flex items-center gap-2 text-zinc-500 whitespace-nowrap">
+                <span>Safe Threshold: <strong className="text-zinc-300">20%</strong></span>
                 <span>•</span>
-                <span>Active Campaigns: <strong>3</strong></span>
+                <span>Active Campaigns: <strong className="text-zinc-300">3</strong></span>
                 <span>•</span>
-                <span>Integrations: <strong>Shopify, Stripe</strong></span>
+                <span>Integrations: <strong className="text-zinc-300">Shopify, Stripe</strong></span>
               </div>
             </>
           )}
           {activeChatId === 'support-flow' && (
             <>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
-                <span className="text-zinc-400">Context: <strong>Sarah Connor</strong></span>
-                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px]">VIP Tier</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
+                <span className="text-zinc-400 whitespace-nowrap">Context: <strong className="text-zinc-200">Sarah Connor</strong></span>
+                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px] whitespace-nowrap">VIP Tier</span>
               </div>
-              <div className="flex items-center gap-3 text-zinc-500">
-                <span>Orders: <strong>5</strong></span>
+              <div className="flex items-center gap-2 text-zinc-500 whitespace-nowrap">
+                <span>Orders: <strong className="text-zinc-300">5</strong></span>
                 <span>•</span>
-                <span>Delayed: <strong>1</strong></span>
+                <span>Delayed: <strong className="text-zinc-300">1</strong></span>
                 <span>•</span>
-                <span>Tickets: <strong>1</strong></span>
+                <span>Tickets: <strong className="text-zinc-300">1</strong></span>
               </div>
             </>
           )}
@@ -1723,7 +1799,7 @@ What would you like to do?`,
                     {copiedIdx === i ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                     {copiedIdx === i ? 'Copied' : 'Copy'}
                   </button>
-                  {isLast && !isStreaming && (
+                  {isLast && !isStreaming && i > 0 && messages[i - 1]?.role === 'user' && (
                     <button
                       onClick={handleRegenerate}
                       className="flex items-center gap-1 text-[9px] text-zinc-500 hover:text-zinc-300 transition-colors ml-1"
@@ -1773,7 +1849,7 @@ What would you like to do?`,
       </div>
 
       {/* Suggestion Chips */}
-      {currentSuggestions.length > 0 && !isStreaming && (
+      {currentSuggestions.length > 0 && !isStreaming && messages.length <= 1 && (
         <div className="px-4 py-2 flex flex-col gap-1.5 bg-zinc-950/10 border-t border-zinc-900 shrink-0">
           <span className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider">Suggested Queries</span>
           <div className="flex flex-wrap gap-1.5">
@@ -1791,7 +1867,7 @@ What would you like to do?`,
       )}
 
       {/* Input Panel */}
-      <div className="p-4 border-t border-zinc-800/80 bg-zinc-950/20 flex gap-2 shrink-0">
+      <div className="p-4 border-t border-zinc-800/80 bg-zinc-950/20 shrink-0">
         <input
           type="file"
           ref={fileInputRef}
@@ -1799,27 +1875,31 @@ What would you like to do?`,
           accept=".csv"
           className="hidden"
         />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="p-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80 transition-colors flex items-center justify-center shrink-0"
-          title="Attach supplier CSV file"
-        >
-          <Upload className="w-4 h-4" />
-        </button>
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSend(input);
           }}
-          className="flex-1 relative flex items-end"
+          className={`flex items-end gap-2 p-2 rounded-xl border bg-zinc-950/40 transition-all duration-300 ${
+            mode === 'agent'
+              ? 'border-purple-900/40 focus-within:border-purple-500/40 focus-within:ring-1 focus-within:ring-purple-500/10 focus-within:shadow-[0_0_12px_rgba(168,85,247,0.06)]'
+              : 'border-sky-900/40 focus-within:border-sky-500/40 focus-within:ring-1 focus-within:ring-sky-500/10 focus-within:shadow-[0_0_12px_rgba(14,165,233,0.06)]'
+          }`}
         >
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-zinc-200 border border-zinc-800/60 transition-all duration-150 flex items-center justify-center shrink-0 cursor-pointer mb-0.5 hover:scale-105 active:scale-95"
+            title="Attach supplier CSV file"
+          >
+            <Upload className="w-3.5 h-3.5" />
+          </button>
+
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              // Enter sends, Shift+Enter inserts a newline (LLM-chat convention).
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSend(input);
@@ -1827,33 +1907,45 @@ What would you like to do?`,
             }}
             rows={1}
             disabled={fileUploadMutation.isPending}
-            placeholder={mode === 'ask' ? "Query data... (Ask Mode · Shift+Enter for newline)" : "Request actions... (Agent Mode · Shift+Enter for newline)"}
-            className="w-full pl-3 pr-10 py-2.5 bg-zinc-900 border border-zinc-800/80 focus:border-purple-500/40 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none transition-colors resize-none max-h-32 overflow-y-auto leading-relaxed"
+            placeholder={mode === 'ask' ? "Ask about orders, tickets, inventory..." : "Submit discount creation, issue refunds..."}
+            className="flex-1 bg-transparent text-xs text-zinc-150 placeholder-zinc-650 focus:outline-none resize-none max-h-24 overflow-y-auto leading-relaxed border-0 focus:ring-0 p-1.5 focus:border-transparent focus:ring-offset-0 focus:ring-transparent focus:outline-none py-1"
             style={{ height: 'auto' }}
             onInput={(e) => {
               const el = e.currentTarget;
               el.style.height = 'auto';
-              el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+              el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
             }}
           />
-          {isStreaming ? (
-            <button
-              type="button"
-              onClick={handleStop}
-              title="Stop generating"
-              className="absolute right-1.5 bottom-1.5 p-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-all duration-200"
-            >
-              <Square className="w-3.5 h-3.5 fill-current" />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={!input.trim() || fileUploadMutation.isPending}
-              className="absolute right-1.5 bottom-1.5 p-1.5 rounded-md bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-850 text-white disabled:text-zinc-600 transition-all duration-200"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          )}
+
+          <div className="flex items-center shrink-0 mb-0.5 gap-1.5">
+            {input.trim().length > 0 && (
+              <span className="text-[9px] text-zinc-600 font-mono pr-1 hidden sm:inline">{input.length} chars</span>
+            )}
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={handleStop}
+                title="Stop generating"
+                className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center"
+              >
+                <Square className="w-3.5 h-3.5 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim() || fileUploadMutation.isPending}
+                className={`p-1.5 rounded-lg disabled:bg-zinc-900 disabled:text-zinc-650 text-white transition-all cursor-pointer shadow-md hover:scale-105 active:scale-95 flex items-center justify-center border ${
+                  !input.trim() || fileUploadMutation.isPending
+                    ? 'border-transparent'
+                    : mode === 'agent'
+                    ? 'bg-purple-600 hover:bg-purple-500 border-purple-500/20 shadow-purple-600/10'
+                    : 'bg-sky-600 hover:bg-sky-500 border-sky-500/20 shadow-sky-600/10'
+                }`}
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </form>
       </div>
 

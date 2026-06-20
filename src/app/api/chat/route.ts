@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { streamChat } from '@/lib/ai/openai';
+import { logToFile } from '@/lib/ai/logger';
 
 export async function POST(request: NextRequest) {
   let body: { messages?: unknown; mode?: 'ask' | 'agent'; chatId?: string };
@@ -13,6 +14,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { messages, mode, chatId } = body;
+  logToFile(`[API ROUTE] Received request: mode=${mode}, chatId=${chatId}, messagesCount=${Array.isArray(messages) ? messages.length : 0}`);
 
   if (!messages || !Array.isArray(messages)) {
     return new Response(JSON.stringify({ error: 'Messages array is required' }), {

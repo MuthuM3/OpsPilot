@@ -1,0 +1,24 @@
+[2026-06-20T17:28:54.100Z] [API ROUTE] Received request: mode=agent, chatId=discount-flow, messagesCount=1
+[2026-06-20T17:28:54.214Z] [MOCK CHAT] Checking workflow state for chatId=discount-flow, message="Create discount code promo50 with 50% discount"
+[2026-06-20T17:28:54.219Z] [MOCK CHAT] Creating discount: code=PROMO50, discountPercent=50, chatId=discount-flow
+[2026-06-20T17:28:54.219Z] [MOCK CHAT] Failed to write discount draft to DB: Cannot read properties of undefined (reading 'upsert')
+[2026-06-20T17:33:21.352Z] [API ROUTE] Received request: mode=agent, chatId=discount-flow, messagesCount=1
+[2026-06-20T17:33:21.374Z] [MOCK CHAT] Checking workflow state for chatId=discount-flow, message="Create discount code promo50 with 50% discount"
+[2026-06-20T17:33:21.375Z] [MOCK CHAT] activeWorkflow=discount_creation, workflowState=draft, metadata={"code":"TEST50","discountPercent":50}
+[2026-06-20T17:33:21.376Z] [MOCK CHAT] Creating discount: code=PROMO50, discountPercent=50, chatId=discount-flow
+[2026-06-20T17:33:21.384Z] [MOCK CHAT] Upserted conversationState and discount to DB successfully
+[2026-06-20T17:33:43.854Z] [API ROUTE] Received request: mode=agent, chatId=discount-flow, messagesCount=3
+[2026-06-20T17:33:43.859Z] [MOCK CHAT] Checking workflow state for chatId=discount-flow, message="Set expiry next month"
+[2026-06-20T17:33:43.861Z] [MOCK CHAT] activeWorkflow=discount_creation, workflowState=draft, metadata={"code":"PROMO50","expiry":null,"status":"DRAFT","segment":null,"discountPercent":50}
+[2026-06-20T18:00:09.134Z] [API ROUTE] Received request: mode=agent, chatId=refund-flow, messagesCount=8
+[2026-06-20T18:00:09.269Z] [MOCK CHAT] Checking workflow state for chatId=refund-flow, message="Refund Order #ORD-1024"
+[2026-06-20T18:00:09.271Z] [MOCK CHAT] activeWorkflow=undefined, workflowState=undefined, metadata={}
+[2026-06-20T18:00:17.788Z] [API ROUTE] Received request: mode=agent, chatId=refund-flow, messagesCount=10
+[2026-06-20T18:00:17.807Z] [MOCK CHAT] Checking workflow state for chatId=refund-flow, message="Reason: Customer dispute"
+[2026-06-20T18:00:17.809Z] [MOCK CHAT] activeWorkflow=refund_processing, workflowState=draft, metadata={"amount":12199,"reason":null,"status":"DRAFT","orderNumber":"ORD-1024","customerName":"Alice Smith"}
+[2026-06-20T18:00:25.971Z] [API ROUTE] Received request: mode=agent, chatId=refund-flow, messagesCount=12
+[2026-06-20T18:00:25.998Z] [MOCK CHAT] Checking workflow state for chatId=refund-flow, message="Submit Refund"
+[2026-06-20T18:00:26.000Z] [MOCK CHAT] activeWorkflow=refund_processing, workflowState=review, metadata={"amount":12199,"reason":"Customer dispute","status":"DRAFT","orderNumber":"ORD-1024","customerName":"Alice Smith"}
+[2026-06-20T19:08:49.850Z] [API ROUTE] Received request: mode=ask, chatId=chat-1781982150387, messagesCount=2
+[2026-06-20T19:08:49.939Z] [MOCK CHAT] Checking workflow state for chatId=chat-1781982150387, message="what is the today's matrics"
+[2026-06-20T19:08:49.942Z] [MOCK CHAT] activeWorkflow=undefined, workflowState=undefined, metadata={}

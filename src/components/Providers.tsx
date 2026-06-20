@@ -12,6 +12,7 @@ export interface ChatSession {
 }
 
 const DEFAULT_CHATS: ChatSession[] = [
+  { id: 'new-chat-session', title: 'New Chat', mode: 'ask' },
   { id: 'refund-flow', title: 'Refund Order #ORD-1024', mode: 'agent' },
   { id: 'inventory-flow', title: 'Inventory Normalization', mode: 'agent' },
   { id: 'discount-flow', title: 'Create Promo Code', mode: 'agent' },
@@ -65,9 +66,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }));
 
   const [activeTab, setActiveTabState] = useState('dashboard');
-  const [activeChatId, setActiveChatId] = useState('refund-flow');
+  const [activeChatId, setActiveChatId] = useState('new-chat-session');
   const [chatMode, setChatMode] = useState<'ask' | 'agent'>('agent');
-  const [isChatOpen, setIsChatOpen] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInputPreset, setChatInputPreset] = useState('');
   const [activeWorkflow, setActiveWorkflow] = useState<ActiveWorkflowState>({
     activeObjectType: null,
@@ -83,14 +84,29 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [chatListHydrated, setChatListHydrated] = useState(false);
 
   useEffect(() => {
+    let currentList = DEFAULT_CHATS;
     try {
       const saved = localStorage.getItem('opspilot-chat-list');
       if (saved) {
         const parsed = JSON.parse(saved) as ChatSession[];
-        if (Array.isArray(parsed) && parsed.length) setChatList(parsed);
+        if (Array.isArray(parsed) && parsed.length) {
+          currentList = parsed;
+        }
       }
     } catch {
       /* ignore corrupt storage */
+    }
+
+    // Ensure there is always a clean "New Chat" session and select it on refresh
+    const newChat = currentList.find(c => c.title === 'New Chat');
+    if (newChat) {
+      setActiveChatId(newChat.id);
+      setChatList(currentList);
+    } else {
+      const freshId = `chat-${Date.now()}`;
+      const updatedList = [{ id: freshId, title: 'New Chat', mode: 'ask' as const }, ...currentList];
+      setActiveChatId(freshId);
+      setChatList(updatedList);
     }
     setChatListHydrated(true);
   }, []);
@@ -105,6 +121,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, [chatList, chatListHydrated]);
 
   const createChat = () => {
+    const existingNewChat = chatList.find(c => c.title === 'New Chat');
+    if (existingNewChat) {
+      setActiveChatId(existingNewChat.id);
+      setIsChatOpen(true);
+      return existingNewChat.id;
+    }
     const id = `chat-${Date.now()}`;
     setChatList(prev => [{ id, title: 'New Chat', mode: chatMode }, ...prev]);
     setActiveChatId(id);

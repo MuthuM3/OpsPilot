@@ -102,6 +102,25 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // 4. Update customer open tickets related to refunds/orders to IN_PROGRESS
+    try {
+      await prisma.ticket.updateMany({
+        where: {
+          customerId: order.customerId,
+          status: 'OPEN',
+          OR: [
+            { description: { contains: order.orderNumber } },
+            { subject: { contains: order.orderNumber } },
+            { description: { contains: 'refund' } },
+            { subject: { contains: 'refund' } }
+          ]
+        },
+        data: { status: 'IN_PROGRESS' }
+      });
+    } catch (ticketErr) {
+      console.error('Failed to update associated tickets:', ticketErr);
+    }
+
     return NextResponse.json({
       success: true,
       refund,

@@ -169,7 +169,7 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Inventory Agent</h2>
+          <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Inventory Control</h2>
           <p className="text-xs text-zinc-400 mt-1">Upload supplier inventory files and automatically map attributes using AI.</p>
         </div>
         <button
@@ -189,10 +189,10 @@ export default function InventoryPage() {
           onDragLeave={handleDrag}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 flex flex-col items-center justify-center min-h-[300px] ${
+          className={`border border-dashed rounded-xl p-5 cursor-pointer transition-all duration-300 flex flex-col sm:flex-row items-center justify-between gap-4 ${
             dragActive
               ? 'border-purple-500 bg-purple-500/5 shadow-lg shadow-purple-500/5'
-              : 'border-zinc-800/80 bg-zinc-900/10 hover:bg-zinc-900/35 hover:border-zinc-700/80'
+              : 'border-zinc-800/85 bg-zinc-900/10 hover:bg-zinc-900/25 hover:border-zinc-750'
           }`}
         >
           <input
@@ -202,13 +202,20 @@ export default function InventoryPage() {
             accept=".csv"
             className="hidden"
           />
-          <div className="w-12 h-12 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4 text-purple-400">
-            <Upload className="w-5 h-5" />
+          <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+              <Upload className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-zinc-200">Import Supplier Inventory CSV</h3>
+              <p className="text-[11px] text-zinc-550 mt-0.5 leading-normal">
+                Drag and drop your file here, or click to browse. AI will map custom supplier headers to our schema.
+              </p>
+            </div>
           </div>
-          <h3 className="text-sm font-semibold text-zinc-200">Upload supplier inventory CSV</h3>
-          <p className="text-xs text-zinc-500 max-w-sm mt-1 leading-relaxed">
-            Drag and drop your file here, or click to browse. AI will map random headers (like `Item No` or `Stock`) to our product schema.
-          </p>
+          <div className="px-3.5 py-1.5 rounded-xl bg-purple-650 hover:bg-purple-600 text-white text-[11px] font-semibold shrink-0 transition-colors">
+            Select File
+          </div>
         </div>
       ) : (
         <div className="space-y-6">

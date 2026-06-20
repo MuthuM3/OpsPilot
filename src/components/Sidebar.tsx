@@ -71,11 +71,11 @@ export default function Sidebar() {
   });
 
   const navItems = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Inventory Agent', href: '/inventory', icon: Database },
-    { name: 'Refunds Agent', href: '/refunds', icon: RotateCcw },
-    { name: 'Approvals Hub', href: '/approvals', icon: ShieldCheck },
-    { name: 'Timeline Tracker', href: '/timeline', icon: Clock },
+    { name: 'Governance Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Inventory Control', href: '/inventory', icon: Database },
+    { name: 'Support Tickets', href: '/refunds', icon: RotateCcw },
+    { name: 'Approvals Queue', href: '/approvals', icon: ShieldCheck },
+    { name: 'Audit Logs', href: '/timeline', icon: Clock },
   ];
 
   return (
@@ -157,7 +157,10 @@ export default function Sidebar() {
             <>
               {/* New Chat */}
               <button
-                onClick={() => createChat()}
+                onClick={() => {
+                  createChat();
+                  setIsChatOpen(true);
+                }}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-purple-300 bg-purple-600/10 border border-purple-500/20 hover:bg-purple-600/20 transition-all duration-150"
               >
                 <Plus className="w-3.5 h-3.5 shrink-0" />
@@ -205,7 +208,13 @@ export default function Sidebar() {
                     return (
                       <div
                         key={session.id}
-                        className={`group w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs transition-all duration-150 ${
+                        onClick={() => {
+                          if (!isEditing) {
+                            setActiveChatId(session.id);
+                            setIsChatOpen(true);
+                          }
+                        }}
+                        className={`group w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs transition-all duration-150 cursor-pointer ${
                           isSelected
                             ? 'bg-zinc-900 border border-zinc-800 text-purple-300 font-semibold'
                             : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30 border border-transparent'
@@ -222,14 +231,12 @@ export default function Sidebar() {
                               if (e.key === 'Escape') { setEditingId(null); setEditingTitle(''); }
                             }}
                             className="flex-1 min-w-0 bg-zinc-950 border border-purple-500/40 rounded px-1.5 py-0.5 text-[10px] text-zinc-100 focus:outline-none"
+                            onClick={(e) => e.stopPropagation()}
                           />
                         ) : (
-                          <button
-                            onClick={() => {
-                              setActiveChatId(session.id);
-                              setIsChatOpen(true);
-                            }}
-                            onDoubleClick={() => {
+                          <div
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
                               setEditingId(session.id);
                               setEditingTitle(session.title);
                             }}
@@ -238,7 +245,7 @@ export default function Sidebar() {
                           >
                             <MessageSquare className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                             <span className="truncate text-[10px]">{session.title}</span>
-                          </button>
+                          </div>
                         )}
 
                         {!isEditing && (
@@ -275,7 +282,10 @@ export default function Sidebar() {
           ) : (
             <div className="flex flex-col items-center gap-2 pt-2 border-t border-zinc-800/40">
               <button
-                onClick={() => createChat()}
+                onClick={() => {
+                  createChat();
+                  setIsChatOpen(true);
+                }}
                 className="p-2 rounded-lg bg-purple-600/10 text-purple-400 border border-purple-500/20 hover:bg-purple-600/20 transition-all"
                 title="New Chat"
               >

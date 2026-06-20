@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { OpenAI } from 'openai';
 import { parse } from 'csv-parse/sync';
 

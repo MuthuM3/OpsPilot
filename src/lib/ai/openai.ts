@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { OpenAI } from 'openai';
 import { prisma } from '../db/prisma';
 import { evaluateRefundRisk } from '../approvals/engine';
+import { logToFile } from './logger';
 
 // ----------------------------------------------------
 // Endpoint Health Cache
@@ -386,9 +388,9 @@ export const businessTools: Record<
 export async function parseConversationContext(messages: ChatMessage[], chatId?: string): Promise<ConversationContext> {
   const ctx: ConversationContext = {};
 
-  if (chatId) {
+  if (chatId && (prisma as any).conversationState) {
     try {
-      const dbState = await prisma.conversationState.findUnique({
+      const dbState = await (prisma as any).conversationState.findUnique({
         where: { chatId }
       });
       if (dbState) {
@@ -715,14 +717,16 @@ async function handleMockChat(
   const plan = context.queryPlan;
 
   // ── 0. Workflow State Machine Interceptor ──────────────────────────────────
-  if (chatId) {
+  if (chatId && (prisma as any).conversationState) {
     try {
-      const dbState = await prisma.conversationState.findUnique({
+      logToFile(`[MOCK CHAT] Checking workflow state for chatId=${chatId}, message="${message}"`);
+      const dbState = await (prisma as any).conversationState.findUnique({
         where: { chatId }
       });
       const activeWorkflow = dbState?.activeWorkflow;
       const workflowState = dbState?.workflowState;
       const metadata = (dbState?.metadata as any) || {};
+      logToFile(`[MOCK CHAT] activeWorkflow=${activeWorkflow}, workflowState=${workflowState}, metadata=${JSON.stringify(metadata)}`);
 
       // A. Discount Creation Workflow
       if (activeWorkflow === 'discount_creation') {
@@ -914,6 +918,216 @@ Once approved by a manager, the coupon code will immediately sync with Shopify a
         }
       }
 
+      // AA. Product Creation Workflow
+      if (activeWorkflow === 'product_creation') {
+        const q = message.toLowerCase();
+        
+        // Set Price
+        if (q.includes('price') || q.includes('₹') || q.includes('cost') || q.includes('rate') || q.includes('value')) {
+          // Parse price
+          const numMatch = q.match(/(\d+)/);
+          const priceVal = numMatch ? parseFloat(numMatch[1]) : 1500;
+          
+          const updatedMeta = { ...metadata, price: priceVal };
+          const hasStock = updatedMeta.stock !== null && updatedMeta.stock !== undefined;
+          const nextState = hasStock ? 'review' : 'draft';
+
+          await prisma.conversationState.update({
+            where: { chatId },
+            data: {
+              workflowState: nextState,
+              metadata: updatedMeta
+            }
+          });
+
+          const missingFields = [];
+          if (!hasStock) missingFields.push('Initial Stock');
+
+          const actions = [];
+          if (!hasStock) actions.push('Set Stock');
+          if (nextState === 'review') actions.push('Publish Product');
+
+          const wfCardPayload = JSON.stringify({
+            activeObjectType: 'product',
+            activeObjectId: metadata.sku,
+            activeWorkflow: 'product_creation',
+            workflowState: nextState,
+            metadata: {
+              ...updatedMeta,
+              missing: missingFields,
+              actions
+            }
+          });
+
+          return `I've configured the price for product **${metadata.name}** to **₹${priceVal.toLocaleString('en-IN')}**.
+${hasStock ? 'All required parameters are set. The product is now ready to review and publish.' : 'The stock count is still missing. Configure stock levels before publishing.'}
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+        }
+
+        // Set Stock
+        if (q.includes('stock') || q.includes('qty') || q.includes('quantity') || q.includes('count')) {
+          // Parse stock count
+          const numMatch = q.match(/(\d+)/);
+          const stockVal = numMatch ? parseInt(numMatch[1]) : 100;
+          
+          const updatedMeta = { ...metadata, stock: stockVal };
+          const hasPrice = updatedMeta.price !== null && updatedMeta.price !== undefined;
+          const nextState = hasPrice ? 'review' : 'draft';
+
+          await prisma.conversationState.update({
+            where: { chatId },
+            data: {
+              workflowState: nextState,
+              metadata: updatedMeta
+            }
+          });
+
+          const missingFields = [];
+          if (!hasPrice) missingFields.push('Price');
+
+          const actions = [];
+          if (!hasPrice) actions.push('Set Price');
+          if (nextState === 'review') actions.push('Publish Product');
+
+          const wfCardPayload = JSON.stringify({
+            activeObjectType: 'product',
+            activeObjectId: metadata.sku,
+            activeWorkflow: 'product_creation',
+            workflowState: nextState,
+            metadata: {
+              ...updatedMeta,
+              missing: missingFields,
+              actions
+            }
+          });
+
+          return `I've configured the initial stock level for **${metadata.name}** to **${stockVal} units**.
+${hasPrice ? 'All required parameters are set. The product is now ready to review and publish.' : 'The pricing parameter is still missing. Configure the price before publishing.'}
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+        }
+
+        // Publish Product
+        if (q.includes('publish') || q.includes('submit')) {
+          const priceVal = metadata.price || 1500;
+          const stockVal = metadata.stock || 100;
+          
+          // Check for governance threshold: if price > 5000, we require approval
+          const needsApproval = priceVal > 5000;
+          const nextState = needsApproval ? 'approval_required' : 'completed';
+
+          if (needsApproval) {
+            let approvalId = metadata.approvalId;
+            if (!approvalId) {
+              // Create a pending approval record
+              const approval = await prisma.approval.create({
+                data: {
+                  type: 'INVENTORY_UPDATE',
+                  status: 'PENDING',
+                  metadata: {
+                    sku: metadata.sku,
+                    name: metadata.name,
+                    price: priceVal,
+                    inventory: stockVal,
+                    products: [
+                      {
+                        sku: metadata.sku,
+                        name: metadata.name,
+                        price: priceVal,
+                        inventory: stockVal
+                      }
+                    ],
+                    action: 'create_product',
+                    explanation: 'Product price exceeds the ₹5,000 threshold. Manager approval required.'
+                  }
+                }
+              });
+              approvalId = approval.id;
+
+              await prisma.conversationState.update({
+                where: { chatId },
+                data: {
+                  workflowState: 'approval_required',
+                  metadata: {
+                    ...metadata,
+                    approvalId: approval.id,
+                    actions: []
+                  }
+                }
+              });
+            }
+
+            const wfCardPayload = JSON.stringify({
+              activeObjectType: 'product',
+              activeObjectId: metadata.sku,
+              activeWorkflow: 'product_creation',
+              workflowState: 'approval_required',
+              metadata: {
+                ...metadata,
+                approvalId: approvalId,
+                actions: []
+              }
+            });
+
+            return `⚠️ **Governance Alert**: The product **${metadata.name}** is priced at **₹${priceVal.toLocaleString('en-IN')}**, which exceeds our **₹5,000 auto-publish threshold**.
+
+A product creation approval request has been dispatched to the **Approvals Hub** (ID: \`${approvalId}\`). The product will be published to the catalog once approved.
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+          } else {
+            // Auto-publish: check if product already exists to prevent unique key violation on regeneration
+            const existingProduct = await prisma.product.findUnique({
+              where: { sku: metadata.sku }
+            });
+
+            if (!existingProduct) {
+              await prisma.product.create({
+                data: {
+                  sku: metadata.sku,
+                  name: metadata.name,
+                  price: priceVal,
+                  inventory: stockVal,
+                  category: 'Uncategorized',
+                  supplier: 'Manual Creator'
+                }
+              });
+
+              await prisma.conversationState.update({
+                where: { chatId },
+                data: {
+                  workflowState: 'completed',
+                  metadata: {
+                    ...metadata,
+                    status: 'ACTIVE',
+                    actions: []
+                  }
+                }
+              });
+            }
+
+            const wfCardPayload = JSON.stringify({
+              activeObjectType: 'product',
+              activeObjectId: metadata.sku,
+              activeWorkflow: 'product_creation',
+              workflowState: 'completed',
+              metadata: {
+                ...metadata,
+                status: 'ACTIVE',
+                actions: []
+              }
+            });
+
+            return `✅ **Catalog Success**: Product **${metadata.name}** (SKU: \`${metadata.sku}\`) has been successfully created and published to the inventory!
+
+*   Price: **₹${priceVal.toLocaleString('en-IN')}**
+*   Stock: **${stockVal} units**
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+          }
+        }
+      }
+
       // B. Refund Request Workflow
       if (activeWorkflow === 'refund_processing') {
         const q = message.toLowerCase();
@@ -969,39 +1183,45 @@ The request is now ready for final submission.
           const explanation = riskAnalysis.explanation;
 
           const existingRefund = await prisma.refund.findFirst({ where: { orderId: order.id } });
-          if (existingRefund) {
+          const isRegenerating = metadata.status === 'PENDING_APPROVAL' || metadata.status === 'COMPLETED';
+
+          if (existingRefund && !isRegenerating) {
             return `A refund for **${order.orderNumber}** has already been created. Current status: **${existingRefund.status}**.`;
           }
 
           if (amount > 10000 || riskScore > 50) {
             // Requires approval
-            const approval = await prisma.approval.create({
-              data: {
-                type: 'REFUND_REQUEST',
-                status: 'PENDING',
-                metadata: { orderId: order.id, orderNumber: order.orderNumber, customerName: order.customer.name, amount, reasons, riskScore, explanation }
-              }
-            });
+            let approvalId = metadata.approvalId;
+            if (!existingRefund) {
+              const approval = await prisma.approval.create({
+                data: {
+                  type: 'REFUND_REQUEST',
+                  status: 'PENDING',
+                  metadata: { orderId: order.id, orderNumber: order.orderNumber, customerName: order.customer.name, amount, reasons, riskScore, explanation }
+                }
+              });
+              approvalId = approval.id;
 
-            await prisma.refund.create({
-              data: {
-                orderId: order.id,
-                amount,
-                reason: metadata.reason || 'Customer request',
-                status: 'PENDING',
-                riskScore,
-                riskExplanation: explanation,
-                approvalId: approval.id
-              }
-            });
+              await prisma.refund.create({
+                data: {
+                  orderId: order.id,
+                  amount,
+                  reason: metadata.reason || 'Customer request',
+                  status: 'PENDING',
+                  riskScore,
+                  riskExplanation: explanation,
+                  approvalId: approval.id
+                }
+              });
 
-            await prisma.conversationState.update({
-              where: { chatId },
-              data: {
-                workflowState: 'approval_required',
-                metadata: { ...metadata, status: 'PENDING_APPROVAL', approvalId: approval.id }
-              }
-            });
+              await prisma.conversationState.update({
+                where: { chatId },
+                data: {
+                  workflowState: 'approval_required',
+                  metadata: { ...metadata, status: 'PENDING_APPROVAL', approvalId: approval.id }
+                }
+              });
+            }
 
             const wfCardPayload = JSON.stringify({
               activeObjectType: 'refund',
@@ -1017,7 +1237,7 @@ The request is now ready for final submission.
             });
 
             const approvalCardPayload = JSON.stringify({
-              id: approval.id,
+              id: approvalId,
               type: 'REFUND_REQUEST',
               amount,
               riskScore,
@@ -1031,39 +1251,43 @@ Because this exceeds the 10,000 threshold or is flagged high-risk, it requires s
 [WORKFLOW_CARD: ${wfCardPayload}]`;
           } else {
             // Low risk auto approve
-            const approval = await prisma.approval.create({
-              data: {
-                type: 'REFUND_REQUEST',
-                status: 'APPROVED',
-                metadata: { orderId: order.id, orderNumber: order.orderNumber, customerName: order.customer.name, amount, reasons, riskScore, explanation }
-              }
-            });
+            let approvalId = metadata.approvalId;
+            if (!existingRefund) {
+              const approval = await prisma.approval.create({
+                data: {
+                  type: 'REFUND_REQUEST',
+                  status: 'APPROVED',
+                  metadata: { orderId: order.id, orderNumber: order.orderNumber, customerName: order.customer.name, amount, reasons, riskScore, explanation }
+                }
+              });
+              approvalId = approval.id;
 
-            await prisma.refund.create({
-              data: {
-                orderId: order.id,
-                amount,
-                reason: metadata.reason || 'Customer request',
-                status: 'APPROVED',
-                riskScore,
-                riskExplanation: 'Auto-approved low risk refund.',
-                approvalId: approval.id
-              }
-            });
+              await prisma.refund.create({
+                data: {
+                  orderId: order.id,
+                  amount,
+                  reason: metadata.reason || 'Customer request',
+                  status: 'APPROVED',
+                  riskScore,
+                  riskExplanation: 'Auto-approved low risk refund.',
+                  approvalId: approval.id
+                }
+              });
 
-            await prisma.conversationState.update({
-              where: { chatId },
-              data: {
-                workflowState: 'completed',
-                metadata: { ...metadata, status: 'COMPLETED' }
-              }
-            });
+              await prisma.conversationState.update({
+                where: { chatId },
+                data: {
+                  workflowState: 'completed',
+                  metadata: { ...metadata, status: 'COMPLETED', approvalId: approval.id }
+                }
+              });
 
-            // Update order status to REFUNDED
-            await prisma.order.update({
-              where: { id: order.id },
-              data: { status: 'REFUNDED' }
-            });
+              // Update order status to REFUNDED
+              await prisma.order.update({
+                where: { id: order.id },
+                data: { status: 'REFUNDED' }
+              });
+            }
 
             const wfCardPayload = JSON.stringify({
               activeObjectType: 'refund',
@@ -1196,6 +1420,92 @@ ${shown.map((c: any, i: number) =>
     }
   }
 
+  // ── ACTION: Product Creation ──────────────────────────────────────────────
+  const lowerQ = query.toLowerCase();
+  if (intent === 'action' && (lowerQ.includes('product') || lowerQ.includes('item') || lowerQ.includes('inventory')) && (lowerQ.includes('create') || lowerQ.includes('add') || lowerQ.includes('new'))) {
+    // Match product name
+    const nameMatch = query.match(/(?:create|add|new)\s+product\s+([^with|price|stock|qty|in|for]+)/i) || 
+                      query.match(/(?:create|add|new)\s+item\s+([^with|price|stock|qty|in|for]+)/i);
+    let productName = nameMatch ? nameMatch[1].trim() : 'New Product';
+    
+    // Clean up trailing/leading spaces or punctuation
+    productName = productName.replace(/^(a|an|the)\s+/i, '').replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
+    if (!productName) productName = 'New Product';
+
+    // Match price
+    const priceMatch = query.match(/(?:price|₹|rs\.?)\s*(\d+(?:\.\d+)?)/i) || query.match(/(\d+(?:\.\d+)?)\s*(?:inr|rs|rupees)/i);
+    const priceVal = priceMatch ? parseFloat(priceMatch[1]) : null;
+
+    // Match stock
+    const stockMatch = query.match(/(?:stock|qty|quantity|count)\s*(\d+)/i) || query.match(/(\d+)\s*(?:units|pcs|items)/i);
+    const stockVal = stockMatch ? parseInt(stockMatch[1]) : null;
+
+    const sku = productName.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 8) + Math.floor(100 + Math.random() * 900);
+
+    logToFile(`[MOCK CHAT] Creating product: name=${productName}, sku=${sku}, price=${priceVal}, stock=${stockVal}, chatId=${chatId}`);
+
+    const hasPrice = priceVal !== null;
+    const hasStock = stockVal !== null;
+    const isCompleted = hasPrice && hasStock;
+    const nextState = isCompleted ? 'review' : 'draft';
+
+    const missingFields = [];
+    if (!hasPrice) missingFields.push('Price');
+    if (!hasStock) missingFields.push('Initial Stock');
+
+    const actions = [];
+    if (!hasPrice) actions.push('Set Price');
+    if (!hasStock) actions.push('Set Stock');
+    if (isCompleted) actions.push('Publish Product');
+
+    if (chatId) {
+      try {
+        await prisma.conversationState.upsert({
+          where: { chatId },
+          update: {
+            activeObjectType: 'product',
+            activeObjectId: sku,
+            activeWorkflow: 'product_creation',
+            workflowState: nextState,
+            metadata: { sku, name: productName, price: priceVal, stock: stockVal, status: 'DRAFT' }
+          },
+          create: {
+            chatId,
+            activeObjectType: 'product',
+            activeObjectId: sku,
+            activeWorkflow: 'product_creation',
+            workflowState: nextState,
+            metadata: { sku, name: productName, price: priceVal, stock: stockVal, status: 'DRAFT' }
+          }
+        });
+        logToFile(`[MOCK CHAT] Upserted conversationState for product_creation to DB successfully`);
+      } catch (err: any) {
+        logToFile(`[MOCK CHAT] Failed to write product draft state to DB: ${err.message}`);
+      }
+    }
+
+    const wfCardPayload = JSON.stringify({
+      activeObjectType: 'product',
+      activeObjectId: sku,
+      activeWorkflow: 'product_creation',
+      workflowState: nextState,
+      metadata: {
+        sku,
+        name: productName,
+        price: priceVal,
+        stock: stockVal,
+        status: 'DRAFT',
+        missing: missingFields,
+        actions
+      }
+    });
+
+    return `I've started a new product creation workflow for **${productName}** (SKU: \`${sku}\`).
+${isCompleted ? 'The product draft is ready. Verify details and publish.' : `The product draft is created. We need to configure the ${missingFields.join(' and ')} before publishing.`}
+
+[WORKFLOW_CARD: ${wfCardPayload}]`;
+  }
+
   // ── ACTION: Discount Creation ─────────────────────────────────────────────
   if (intent === 'action' && (query.includes('discount') || query.includes('coupon') || query.includes('promo'))) {
     const pctMatch = query.match(/(\d+)%/);
@@ -1203,6 +1513,7 @@ ${shown.map((c: any, i: number) =>
     const codeMatch = query.match(/code\s+([a-zA-Z0-9_-]+)/i) || query.match(/discount\s+([a-zA-Z0-9_-]+)/i) || query.match(/coupon\s+([a-zA-Z0-9_-]+)/i);
     const code = codeMatch ? codeMatch[1].toUpperCase() : `SAVE${discountPercent}`;
 
+    logToFile(`[MOCK CHAT] Creating discount: code=${code}, discountPercent=${discountPercent}, chatId=${chatId}`);
     if (chatId) {
       try {
         await prisma.conversationState.upsert({
@@ -1240,9 +1551,13 @@ ${shown.map((c: any, i: number) =>
             status: 'DRAFT'
           }
         });
-      } catch (err) {
+        logToFile(`[MOCK CHAT] Upserted conversationState and discount to DB successfully`);
+      } catch (err: any) {
+        logToFile(`[MOCK CHAT] Failed to write discount draft to DB: ${err.message}`);
         console.error('Failed to write discount draft to DB:', err);
       }
+    } else {
+      logToFile(`[MOCK CHAT] Skip DB write because chatId is falsy`);
     }
 
     const wfCardPayload = JSON.stringify({
@@ -1653,9 +1968,12 @@ async function gatherChatContext(messages: ChatMessage[], chatId?: string) {
   const discountAction =
     /\b(discount|coupon|promo)\b/i.test(resolvedQuery) &&
     (/\b(create|make|generate|add|new|apply|code)\b/i.test(resolvedQuery) || /%/.test(resolvedQuery));
+  const productAction =
+    /\b(product|item|inventory)\b/i.test(resolvedQuery) &&
+    /\b(create|add|new)\b/i.test(resolvedQuery);
 
   let detectedIntent: 'analysis' | 'action' | 'general' = 'general';
-  if (plan.queryType === 'action' || refundAction || discountAction) {
+  if (plan.queryType === 'action' || refundAction || discountAction || productAction) {
     detectedIntent = 'action';
   } else if (plan.queryType === 'lookup') {
     detectedIntent = 'general'; // lookup handled via plan, not legacy intent
@@ -1916,7 +2234,7 @@ function buildApprovalCardAppends(toolOutputs: any[]): string {
       if (Array.isArray(approvals)) {
         for (const app of approvals) {
           const meta = app.metadata as any;
-          let cardPayload: any = { id: app.id, type: app.type };
+          const cardPayload: any = { id: app.id, type: app.type };
           if (app.type === 'REFUND_REQUEST') {
             cardPayload.amount = meta.amount;
             cardPayload.riskScore = meta.riskScore;
