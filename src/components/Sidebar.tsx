@@ -16,15 +16,33 @@ import {
   ChevronDown, 
   ChevronRight, 
   MessageSquare,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  Trash2,
+  Pencil,
+  Search
 } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { activeChatId, setActiveChatId, isChatOpen, setIsChatOpen, showToast } = useWorkspace();
-  
+  const { activeChatId, setActiveChatId, isChatOpen, setIsChatOpen, showToast, chatList, createChat, deleteChat, renameChat } = useWorkspace();
+
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
+  const [chatSearch, setChatSearch] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+
+  const commitRename = (id: string) => {
+    const trimmed = editingTitle.trim();
+    if (trimmed) renameChat(id, trimmed);
+    setEditingId(null);
+    setEditingTitle('');
+  };
+
+  const filteredChats = chatList.filter(c =>
+    c.title.toLowerCase().includes(chatSearch.trim().toLowerCase())
+  );
 
   const queryClient = useQueryClient();
 
@@ -58,12 +76,6 @@ export default function Sidebar() {
     { name: 'Refunds Agent', href: '/refunds', icon: RotateCcw },
     { name: 'Approvals Hub', href: '/approvals', icon: ShieldCheck },
     { name: 'Timeline Tracker', href: '/timeline', icon: Clock },
-  ];
-
-  const chatSessions = [
-    { id: 'refund-flow', title: 'Refund Order #ORD-1024', mode: 'agent' },
-    { id: 'inventory-flow', title: 'Inventory Normalization', mode: 'agent' },
-    { id: 'support-flow', title: 'Shipment Status Query', mode: 'ask' }
   ];
 
   return (
@@ -143,10 +155,19 @@ export default function Sidebar() {
         <div className="space-y-2">
           {!isCollapsed ? (
             <>
+              {/* New Chat */}
+              <button
+                onClick={() => createChat()}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-purple-300 bg-purple-600/10 border border-purple-500/20 hover:bg-purple-600/20 transition-all duration-150"
+              >
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span>New Chat</span>
+              </button>
+
               {/* Header Toggle */}
               <button
                 onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
-                className="w-full flex items-center justify-between px-3 text-[9px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="w-full flex items-center justify-between px-3 pt-1 text-[9px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors"
               >
                 <span>Recent Conversations</span>
                 {isHistoryExpanded ? (
@@ -158,24 +179,94 @@ export default function Sidebar() {
 
               {isHistoryExpanded && (
                 <div className="space-y-1 animate-in slide-in-from-top-1 duration-150">
-                  {chatSessions.map((session) => {
+                  {/* Search */}
+                  {chatList.length > 3 && (
+                    <div className="relative px-1 pb-1">
+                      <Search className="w-3 h-3 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        value={chatSearch}
+                        onChange={(e) => setChatSearch(e.target.value)}
+                        placeholder="Search conversations..."
+                        className="w-full pl-7 pr-2 py-1.5 bg-zinc-900/60 border border-zinc-800/80 focus:border-purple-500/40 rounded-lg text-[10px] text-zinc-200 placeholder-zinc-600 focus:outline-none transition-colors"
+                      />
+                    </div>
+                  )}
+
+                  {chatList.length === 0 && (
+                    <p className="px-3 py-2 text-[10px] text-zinc-600 italic">No conversations yet.</p>
+                  )}
+                  {chatList.length > 0 && filteredChats.length === 0 && (
+                    <p className="px-3 py-2 text-[10px] text-zinc-600 italic">No matches.</p>
+                  )}
+
+                  {filteredChats.map((session) => {
                     const isSelected = activeChatId === session.id;
+                    const isEditing = editingId === session.id;
                     return (
-                      <button
+                      <div
                         key={session.id}
-                        onClick={() => {
-                          setActiveChatId(session.id);
-                          setIsChatOpen(true);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs transition-all duration-150 truncate ${
+                        className={`group w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs transition-all duration-150 ${
                           isSelected
                             ? 'bg-zinc-900 border border-zinc-800 text-purple-300 font-semibold'
                             : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30 border border-transparent'
                         }`}
                       >
-                        <MessageSquare className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                        <span className="truncate text-[10px]">{session.title}</span>
-                      </button>
+                        {isEditing ? (
+                          <input
+                            autoFocus
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onBlur={() => commitRename(session.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitRename(session.id);
+                              if (e.key === 'Escape') { setEditingId(null); setEditingTitle(''); }
+                            }}
+                            className="flex-1 min-w-0 bg-zinc-950 border border-purple-500/40 rounded px-1.5 py-0.5 text-[10px] text-zinc-100 focus:outline-none"
+                          />
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setActiveChatId(session.id);
+                              setIsChatOpen(true);
+                            }}
+                            onDoubleClick={() => {
+                              setEditingId(session.id);
+                              setEditingTitle(session.title);
+                            }}
+                            className="flex items-center gap-2.5 flex-1 min-w-0"
+                            title="Double-click to rename"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                            <span className="truncate text-[10px]">{session.title}</span>
+                          </button>
+                        )}
+
+                        {!isEditing && (
+                          <>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingId(session.id);
+                                setEditingTitle(session.title);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-zinc-500 hover:text-purple-300 transition-all shrink-0"
+                              title="Rename conversation"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteChat(session.id);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-zinc-500 hover:text-rose-400 transition-all shrink-0"
+                              title="Delete conversation"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -183,7 +274,14 @@ export default function Sidebar() {
             </>
           ) : (
             <div className="flex flex-col items-center gap-2 pt-2 border-t border-zinc-800/40">
-              {chatSessions.map((session) => {
+              <button
+                onClick={() => createChat()}
+                className="p-2 rounded-lg bg-purple-600/10 text-purple-400 border border-purple-500/20 hover:bg-purple-600/20 transition-all"
+                title="New Chat"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              {chatList.map((session) => {
                 const isSelected = activeChatId === session.id;
                 return (
                   <button

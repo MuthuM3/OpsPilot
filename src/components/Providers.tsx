@@ -1,9 +1,21 @@
 'use client';
 
-import React, { useState, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { Sparkles, AlertTriangle, XCircle, Info, X } from 'lucide-react';
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  mode: 'ask' | 'agent';
+}
+
+const DEFAULT_CHATS: ChatSession[] = [
+  { id: 'refund-flow', title: 'Refund Order #ORD-1024', mode: 'agent' },
+  { id: 'inventory-flow', title: 'Inventory Normalization', mode: 'agent' },
+  { id: 'support-flow', title: 'Shipment Status Query', mode: 'ask' },
+];
 
 interface WorkspaceContextProps {
   activeTab: string;
@@ -15,6 +27,10 @@ interface WorkspaceContextProps {
   isChatOpen: boolean;
   setIsChatOpen: (open: boolean) => void;
   showToast: (message: string, type?: 'success' | 'warning' | 'error' | 'info', title?: string) => void;
+  chatList: ChatSession[];
+  createChat: () => string;
+  deleteChat: (id: string) => void;
+  renameChat: (id: string, title: string) => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextProps | undefined>(undefined);
@@ -39,7 +55,62 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [activeChatId, setActiveChatId] = useState('refund-flow');
   const [chatMode, setChatMode] = useState<'ask' | 'agent'>('agent');
   const [isChatOpen, setIsChatOpen] = useState(true);
-  
+
+  // Conversation list — the single source of truth shared by the Sidebar
+  // (history) and the chat panel. Persisted so new chats survive a refresh.
+  const [chatList, setChatList] = useState<ChatSession[]>(DEFAULT_CHATS);
+  const [chatListHydrated, setChatListHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('opspilot-chat-list');
+      if (saved) {
+        const parsed = JSON.parse(saved) as ChatSession[];
+        if (Array.isArray(parsed) && parsed.length) setChatList(parsed);
+      }
+    } catch {
+      /* ignore corrupt storage */
+    }
+    setChatListHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!chatListHydrated) return;
+    try {
+      localStorage.setItem('opspilot-chat-list', JSON.stringify(chatList));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [chatList, chatListHydrated]);
+
+  const createChat = () => {
+    const id = `chat-${Date.now()}`;
+    setChatList(prev => [{ id, title: 'New Chat', mode: chatMode }, ...prev]);
+    setActiveChatId(id);
+    setIsChatOpen(true);
+    return id;
+  };
+
+  const deleteChat = (id: string) => {
+    setChatList(prev => {
+      const next = prev.filter(c => c.id !== id);
+      // Always keep at least one conversation available.
+      if (next.length === 0) {
+        const fresh: ChatSession = { id: `chat-${Date.now()}`, title: 'New Chat', mode: chatMode };
+        setActiveChatId(fresh.id);
+        return [fresh];
+      }
+      if (id === activeChatId) {
+        setActiveChatId(next[0].id);
+      }
+      return next;
+    });
+  };
+
+  const renameChat = (id: string, title: string) => {
+    setChatList(prev => prev.map(c => (c.id === id ? { ...c, title } : c)));
+  };
+
   const [toast, setToast] = useState<{
     show: boolean;
     message: string;
@@ -83,7 +154,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         setChatMode,
         isChatOpen,
         setIsChatOpen,
-        showToast
+        showToast,
+        chatList,
+        createChat,
+        deleteChat,
+        renameChat
       }}>
         {children}
 

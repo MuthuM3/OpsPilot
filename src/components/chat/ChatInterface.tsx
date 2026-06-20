@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, X, Check, AlertTriangle, ShieldCheck, Database, Upload, ArrowRight, Loader2, MessageSquare, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { Send, Sparkles, X, Check, AlertTriangle, ShieldCheck, Database, Upload, ArrowRight, Loader2, MessageSquare, ChevronLeft, ChevronRight, Clock, Copy, RefreshCw, Square } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '@/components/Providers';
 
@@ -110,7 +110,9 @@ export default function ChatInterface() {
     setChatMode: setMode,
     isChatOpen,
     setIsChatOpen,
-    showToast
+    showToast,
+    chatList,
+    renameChat
   } = useWorkspace();
   
   const [width, setWidth] = useState(420);
@@ -128,6 +130,13 @@ export default function ChatInterface() {
   const [processingInlineApprovals, setProcessingInlineApprovals] = useState<Record<string, 'APPROVING' | 'REJECTING'>>({});
   const [showCsvWhy, setShowCsvWhy] = useState<number | null>(null);
   const [showApprovalWhy, setShowApprovalWhy] = useState<Record<string, boolean>>({});
+
+  // Streaming / LLM-chat experience states
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [turnError, setTurnError] = useState<{ chatId: string } | null>(null);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   
   // Multi-session chat conversations database
   const [chatSessions, setChatSessions] = useState<Record<string, Message[]>>({
@@ -200,39 +209,177 @@ You can ask me questions about shipments, products, or tickets:
     document.removeEventListener('mouseup', stopResize);
   };
 
-  // Mutation to send chat message
-  const chatMutation = useMutation({
-    mutationFn: async (payload: { updatedMessages: Message[]; currentMode: 'ask' | 'agent' }) => {
+  // ---------------------------------------------------------------
+  // Persistence: hydrate conversations from localStorage once, then
+  // keep them in sync so a refresh no longer wipes chat history.
+  // ---------------------------------------------------------------
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('opspilot-chat-sessions');
+      if (saved) {
+        const parsed = JSON.parse(saved) as Record<string, Message[]>;
+        // Merge so default welcome messages survive for any missing flow.
+        setChatSessions(prev => ({ ...prev, ...parsed }));
+      }
+    } catch {
+      /* ignore corrupt storage */
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem('opspilot-chat-sessions', JSON.stringify(chatSessions));
+    } catch {
+      /* storage full / unavailable */
+    }
+  }, [chatSessions, hydrated]);
+
+  // Seed a generic welcome the first time a (new) conversation is opened.
+  useEffect(() => {
+    if (!hydrated || !activeChatId) return;
+    setChatSessions(prev => {
+      if (prev[activeChatId]) return prev;
+      return {
+        ...prev,
+        [activeChatId]: [{
+          role: 'assistant',
+          content: `Hi! I'm **OpsPilot**, your AI Operations Assistant.
+
+Ask me about shipments, refunds, inventory, or revenue — or switch to **Agent Mode** to execute governed actions like refunds and discount codes.
+
+What would you like to do?`,
+        }],
+      };
+    });
+  }, [activeChatId, hydrated]);
+
+  // Drop message stores for conversations that have been deleted.
+  useEffect(() => {
+    if (!hydrated) return;
+    const ids = new Set(chatList.map(c => c.id));
+    setChatSessions(prev => {
+      const orphaned = Object.keys(prev).filter(k => !ids.has(k));
+      if (orphaned.length === 0) return prev;
+      const next = { ...prev };
+      orphaned.forEach(k => delete next[k]);
+      return next;
+    });
+  }, [chatList, hydrated]);
+
+  // ---------------------------------------------------------------
+  // Streaming send: reads the response body token-by-token and
+  // progressively updates the trailing assistant message.
+  // ---------------------------------------------------------------
+  const streamAssistant = async (history: Message[], currentMode: 'ask' | 'agent', chatId: string) => {
+    setTurnError(null);
+    setIsStreaming(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    // Append an empty assistant placeholder we will fill as chunks arrive.
+    setChatSessions(prev => ({
+      ...prev,
+      [chatId]: [...(prev[chatId] || []), { role: 'assistant', content: '' }],
+    }));
+
+    try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: payload.updatedMessages, mode: payload.currentMode }),
+        body: JSON.stringify({ messages: history, mode: currentMode }),
+        signal: controller.signal,
       });
-      if (!response.ok) {
+
+      if (!response.ok || !response.body) {
         throw new Error('Failed to send message');
       }
-      const data = await response.json();
-      return data.response as string;
-    },
-    onSuccess: (botResponse) => {
-      setChatSessions(prev => ({
-        ...prev,
-        [activeChatId]: [...(prev[activeChatId] || []), { role: 'assistant', content: botResponse }]
-      }));
 
-      // WORKSPACE ACTION SWITCH:
-      // If AI recommends approval or triggers refund, automatically switch the main Workspace tab to Approvals!
-      if (botResponse.includes('[APPROVAL_CARD:')) {
-        setActiveTab('approvals');
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let acc = '';
+      let switchedTab = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        acc += decoder.decode(value, { stream: true });
+
+        setChatSessions(prev => {
+          const arr = [...(prev[chatId] || [])];
+          arr[arr.length - 1] = { role: 'assistant', content: acc };
+          return { ...prev, [chatId]: arr };
+        });
+
+        // WORKSPACE ACTION SWITCH: jump to Approvals as soon as a card streams in.
+        if (!switchedTab && acc.includes('[APPROVAL_CARD:')) {
+          switchedTab = true;
+          setActiveTab('approvals');
+        }
       }
-    },
-    onError: () => {
-      setChatSessions(prev => ({
-        ...prev,
-        [activeChatId]: [...(prev[activeChatId] || []), { role: 'assistant', content: '⚠️ Sorry, I encountered an error. Please try again.' }]
-      }));
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        // User stopped generation — keep whatever streamed so far.
+      } else {
+        // Drop the empty placeholder and surface a retry affordance.
+        setChatSessions(prev => {
+          const arr = [...(prev[chatId] || [])];
+          if (arr.length && arr[arr.length - 1].role === 'assistant' && arr[arr.length - 1].content === '') {
+            arr.pop();
+          }
+          return { ...prev, [chatId]: arr };
+        });
+        setTurnError({ chatId });
+      }
+    } finally {
+      setIsStreaming(false);
+      abortRef.current = null;
     }
-  });
+  };
+
+  const handleStop = () => {
+    abortRef.current?.abort();
+  };
+
+  const handleRegenerate = () => {
+    if (isStreaming) return;
+    const arr = chatSessions[activeChatId] || [];
+    let end = arr.length;
+    if (arr[end - 1]?.role === 'assistant') end -= 1;
+    const upto = arr.slice(0, end);
+    if (!upto.length || upto[upto.length - 1].role !== 'user') return;
+    setChatSessions(prev => ({ ...prev, [activeChatId]: upto }));
+    streamAssistant(upto, mode, activeChatId);
+  };
+
+  const handleRetry = () => {
+    if (isStreaming) return;
+    const arr = chatSessions[activeChatId] || [];
+    if (arr[arr.length - 1]?.role !== 'user') return;
+    setTurnError(null);
+    streamAssistant(arr, mode, activeChatId);
+  };
+
+  const stripMarkers = (content: string) => {
+    let text = content;
+    ['[CSV_MAPPING_CARD:', '[APPROVAL_CARD:', '[SWITCH_TO_AGENT_CARD:'].forEach(marker => {
+      const idx = text.indexOf(marker);
+      if (idx !== -1) text = text.substring(0, idx);
+    });
+    return text.trim();
+  };
+
+  const handleCopy = async (content: string, idx: number) => {
+    try {
+      await navigator.clipboard.writeText(stripMarkers(content));
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 1500);
+    } catch {
+      showToast('Could not copy to clipboard', 'error');
+    }
+  };
 
   // Mutation to upload CSV directly in chat
   const fileUploadMutation = useMutation({
@@ -273,18 +420,25 @@ You can ask me questions about shipments, products, or tickets:
   });
 
   const handleSend = (text: string, modeOverride?: 'ask' | 'agent') => {
-    if (!text.trim() || chatMutation.isPending) return;
+    if (!text.trim() || isStreaming) return;
 
-    const newMessages: Message[] = [...messages, { role: 'user', content: text }];
-    
+    const chatId = activeChatId;
+    const newMessages: Message[] = [...(chatSessions[chatId] || []), { role: 'user', content: text }];
+
+    // Auto-title a fresh conversation from its first user message (ChatGPT-style).
+    const hadUserMessage = (chatSessions[chatId] || []).some(m => m.role === 'user');
+    if (!hadUserMessage) {
+      const trimmed = text.trim().replace(/\s+/g, ' ');
+      renameChat(chatId, trimmed.length > 40 ? `${trimmed.slice(0, 40)}…` : trimmed);
+    }
+
     // Update local state first
     setChatSessions(prev => ({
       ...prev,
-      [activeChatId]: newMessages
+      [chatId]: newMessages
     }));
-    
+
     setInput('');
-    chatMutation.mutate({ updatedMessages: newMessages, currentMode: modeOverride || mode });
 
     // WORKSPACE ACTION SWITCH:
     // If user checks delayed shipments, automatically switch main workspace to Dashboard/Timeline
@@ -294,6 +448,8 @@ You can ask me questions about shipments, products, or tickets:
     if (text.toLowerCase().includes('inventory') || text.toLowerCase().includes('product')) {
       setActiveTab('inventory');
     }
+
+    streamAssistant(newMessages, modeOverride || mode, chatId);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1003,31 +1159,107 @@ You can ask me questions about shipments, products, or tickets:
     }
 
     const lines = textOnly.split('\n');
+    const blocks: React.ReactNode[] = [];
+    let codeLines: string[] | null = null;
+
+    lines.forEach((line, idx) => {
+      // Multi-line code fence ``` ... ```
+      if (line.trim().startsWith('```')) {
+        if (codeLines === null) {
+          codeLines = [];
+        } else {
+          blocks.push(
+            <pre key={`code-${idx}`} className="my-2 p-3 rounded-lg bg-zinc-950 border border-zinc-800 overflow-x-auto">
+              <code className="text-[10px] font-mono text-purple-200 whitespace-pre">{codeLines.join('\n')}</code>
+            </pre>
+          );
+          codeLines = null;
+        }
+        return;
+      }
+      if (codeLines !== null) {
+        codeLines.push(line);
+        return;
+      }
+
+      if (line.startsWith('### ')) {
+        blocks.push(
+          <h4 key={idx} className="text-xs font-semibold text-sky-400 mt-3 mb-1 uppercase tracking-wider flex items-center gap-1">
+            <Sparkles className="w-3 h-3" />
+            {line.substring(4)}
+          </h4>
+        );
+        return;
+      }
+      if (line.startsWith('#### ')) {
+        blocks.push(
+          <h5 key={idx} className="text-[11px] font-bold text-zinc-200 mt-2 mb-0.5">{parseInlineMarkdown(line.substring(5))}</h5>
+        );
+        return;
+      }
+
+      // Blockquote / GitHub-style callout (e.g. > [!IMPORTANT])
+      if (line.startsWith('>')) {
+        const quote = line.replace(/^>\s?/, '');
+        const callout = quote.match(/^\[!(\w+)\]\s*(.*)$/);
+        blocks.push(
+          <div key={idx} className="border-l-2 border-purple-500/50 pl-3 my-1 text-zinc-400 italic">
+            {callout ? (
+              <span>
+                <strong className="text-purple-300 not-italic uppercase text-[9px] tracking-wider">{callout[1]}</strong>
+                {callout[2] ? <> — {parseInlineMarkdown(callout[2])}</> : null}
+              </span>
+            ) : (
+              parseInlineMarkdown(quote)
+            )}
+          </div>
+        );
+        return;
+      }
+
+      // Ordered list item: "1. ..."
+      const ordered = line.match(/^(\d+)\.\s+(.*)$/);
+      if (ordered) {
+        blocks.push(
+          <div key={idx} className="flex items-start gap-2 pl-2 my-0.5 text-zinc-300">
+            <span className="text-purple-400 font-mono text-[10px] mt-px shrink-0">{ordered[1]}.</span>
+            <span>{parseInlineMarkdown(ordered[2])}</span>
+          </div>
+        );
+        return;
+      }
+
+      // Unordered list item
+      if (line.startsWith('* ') || line.startsWith('- ')) {
+        blocks.push(
+          <div key={idx} className="flex items-start gap-1.5 pl-2 my-0.5 text-zinc-300">
+            <span className="text-purple-400 mt-1.5 h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
+            <span>{parseInlineMarkdown(line.substring(2))}</span>
+          </div>
+        );
+        return;
+      }
+
+      if (line.trim() === '') {
+        blocks.push(<div key={idx} className="h-1.5" />);
+        return;
+      }
+
+      blocks.push(<p key={idx}>{parseInlineMarkdown(line)}</p>);
+    });
+
+    // Unterminated fence (still streaming) — render what we have so far.
+    if (codeLines !== null) {
+      blocks.push(
+        <pre key="code-open" className="my-2 p-3 rounded-lg bg-zinc-950 border border-zinc-800 overflow-x-auto">
+          <code className="text-[10px] font-mono text-purple-200 whitespace-pre">{(codeLines as string[]).join('\n')}</code>
+        </pre>
+      );
+    }
+
     return (
       <div className="space-y-1 text-zinc-200 leading-relaxed">
-        {lines.map((line, idx) => {
-          let formatted = line;
-          if (formatted.startsWith('### ')) {
-            return (
-              <h4 key={idx} className="text-xs font-semibold text-sky-400 mt-3 mb-1 uppercase tracking-wider flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                {formatted.substring(4)}
-              </h4>
-            );
-          }
-          if (formatted.startsWith('* ') || formatted.startsWith('- ')) {
-            return (
-              <div key={idx} className="flex items-start gap-1.5 pl-2 my-0.5 text-zinc-300">
-                <span className="text-purple-400 mt-1.5 h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
-                <span>{parseInlineMarkdown(formatted.substring(2))}</span>
-              </div>
-            );
-          }
-          if (formatted.trim() === '') {
-            return <div key={idx} className="h-1.5" />;
-          }
-          return <p key={idx}>{parseInlineMarkdown(formatted)}</p>;
-        })}
+        {blocks}
 
         {dynamicActions.length > 0 && (
           <div className="mt-3 pt-3 border-t border-zinc-800/40 space-y-2">
@@ -1054,7 +1286,9 @@ You can ask me questions about shipments, products, or tickets:
   };
 
   const parseInlineMarkdown = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
+    // Split on bold, inline code, and [label](url) links (links need parens, so
+    // they never collide with action chips like [Notify Customer]).
+    const parts = text.split(/(\*\*.*?\*\*|`.*?`|\[[^\]]+\]\([^)]+\))/g);
     return parts.map((part, index) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={index} className="font-bold text-white">{part.slice(2, -2)}</strong>;
@@ -1066,15 +1300,29 @@ You can ask me questions about shipments, products, or tickets:
           </code>
         );
       }
+      const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (link) {
+        return (
+          <a
+            key={index}
+            href={link[2]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-400 underline underline-offset-2 hover:text-sky-300"
+          >
+            {link[1]}
+          </a>
+        );
+      }
       return part;
     });
   };
 
-  const currentSuggestions = {
+  const currentSuggestions = ({
     'refund-flow': ['Refund Order #ORD-1024', 'Create discount code SORRY25', 'Which products are causing most refunds?'],
     'inventory-flow': ['List database products', 'Show supplier mappings'],
     'support-flow': ['Which shipments are delayed?', 'Show Sarah\'s support tickets']
-  }[activeChatId] || [];
+  } as Record<string, string[]>)[activeChatId] || ['Which shipments are delayed?', 'Which products are causing most refunds?', 'Show inventory status'];
 
   // Collapsed State Check
   if (!isChatOpen) {
@@ -1122,7 +1370,7 @@ You can ask me questions about shipments, products, or tickets:
       </div>
 
       {/* Business Context Panel */}
-      {!chatMutation.isPending && (
+      {!isStreaming && ['refund-flow', 'inventory-flow', 'support-flow'].includes(activeChatId) && (
         <div className="px-4 py-2 border-b border-zinc-800/50 bg-[#0c1220]/45 flex items-center justify-between text-[10px] shrink-0 animate-in slide-in-from-top-1">
           {activeChatId === 'refund-flow' && (
             <>
@@ -1177,29 +1425,80 @@ You can ask me questions about shipments, products, or tickets:
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message, i) => (
-          <div
-            key={i}
-            className={`flex ${
-              message.role === 'user' ? 'justify-end' : 'justify-start'
-            }`}
-          >
+        {messages.map((message, i) => {
+          const isLast = i === messages.length - 1;
+          const isAssistant = message.role === 'assistant';
+          // Hide the empty assistant placeholder while waiting — the loader covers it.
+          if (isAssistant && message.content === '' && isStreaming && isLast) return null;
+          const streamingThis = isStreaming && isLast && isAssistant;
+          const showActions = isAssistant && message.content !== '' && !streamingThis;
+
+          return (
             <div
-              className={`max-w-[90%] rounded-xl p-3 text-xs border ${
-                message.role === 'user'
-                  ? 'bg-purple-600/10 border-purple-500/20 text-zinc-100'
-                  : 'bg-zinc-900/60 border-zinc-850/80 text-zinc-300'
-              }`}
+              key={i}
+              className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}
             >
-              {formatContent(message.content, i)}
+              <div
+                className={`max-w-[90%] rounded-xl p-3 text-xs border ${
+                  message.role === 'user'
+                    ? 'bg-purple-600/10 border-purple-500/20 text-zinc-100'
+                    : 'bg-zinc-900/60 border-zinc-850/80 text-zinc-300'
+                }`}
+              >
+                {formatContent(message.content, i)}
+                {streamingThis && (
+                  <span className="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-purple-400 animate-pulse rounded-sm" />
+                )}
+              </div>
+
+              {showActions && (
+                <div className="flex items-center gap-1 mt-1 px-1">
+                  <button
+                    onClick={() => handleCopy(message.content, i)}
+                    className="flex items-center gap-1 text-[9px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                    title="Copy message"
+                  >
+                    {copiedIdx === i ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    {copiedIdx === i ? 'Copied' : 'Copy'}
+                  </button>
+                  {isLast && !isStreaming && (
+                    <button
+                      onClick={handleRegenerate}
+                      className="flex items-center gap-1 text-[9px] text-zinc-500 hover:text-zinc-300 transition-colors ml-1"
+                      title="Regenerate response"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Regenerate
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {isStreaming &&
+          messages[messages.length - 1]?.role === 'assistant' &&
+          messages[messages.length - 1]?.content === '' && <SwarmLoader />}
+
+        {turnError && turnError.chatId === activeChatId && (
+          <div className="flex justify-start">
+            <div className="max-w-[90%] rounded-xl p-3 text-xs bg-rose-500/5 border border-rose-500/20 text-zinc-300 space-y-2">
+              <div className="flex items-center gap-1.5 text-rose-400">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span className="font-semibold text-[11px]">Couldn't generate a response.</span>
+              </div>
+              <button
+                onClick={handleRetry}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-purple-300 text-[10px] font-medium transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Retry
+              </button>
             </div>
           </div>
-        ))}
-        
-        {chatMutation.isPending && (
-          <SwarmLoader />
         )}
-        
+
         {fileUploadMutation.isPending && (
           <div className="flex justify-start">
             <div className="max-w-[90%] rounded-xl p-3 text-xs bg-zinc-900/60 border border-zinc-850/80 text-zinc-400 flex items-center gap-2">
@@ -1212,7 +1511,7 @@ You can ask me questions about shipments, products, or tickets:
       </div>
 
       {/* Suggestion Chips */}
-      {currentSuggestions.length > 0 && !chatMutation.isPending && (
+      {currentSuggestions.length > 0 && !isStreaming && (
         <div className="px-4 py-2 flex flex-col gap-1.5 bg-zinc-950/10 border-t border-zinc-900 shrink-0">
           <span className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider">Suggested Queries</span>
           <div className="flex flex-wrap gap-1.5">
@@ -1251,23 +1550,47 @@ You can ask me questions about shipments, products, or tickets:
             e.preventDefault();
             handleSend(input);
           }}
-          className="flex-1 relative flex items-center"
+          className="flex-1 relative flex items-end"
         >
-          <input
-            type="text"
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={chatMutation.isPending || fileUploadMutation.isPending}
-            placeholder={mode === 'ask' ? "Query data... (Ask Mode)" : "Request actions... (Agent Mode)"}
-            className="w-full pl-3 pr-10 py-2.5 bg-zinc-900 border border-zinc-800/80 focus:border-purple-500/40 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none transition-colors"
+            onKeyDown={(e) => {
+              // Enter sends, Shift+Enter inserts a newline (LLM-chat convention).
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend(input);
+              }
+            }}
+            rows={1}
+            disabled={fileUploadMutation.isPending}
+            placeholder={mode === 'ask' ? "Query data... (Ask Mode · Shift+Enter for newline)" : "Request actions... (Agent Mode · Shift+Enter for newline)"}
+            className="w-full pl-3 pr-10 py-2.5 bg-zinc-900 border border-zinc-800/80 focus:border-purple-500/40 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none transition-colors resize-none max-h-32 overflow-y-auto leading-relaxed"
+            style={{ height: 'auto' }}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = 'auto';
+              el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+            }}
           />
-          <button
-            type="submit"
-            disabled={!input.trim() || chatMutation.isPending || fileUploadMutation.isPending}
-            className="absolute right-1.5 p-1.5 rounded-md bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-850 text-white disabled:text-zinc-600 transition-all duration-200"
-          >
-            <Send className="w-3.5 h-3.5" />
-          </button>
+          {isStreaming ? (
+            <button
+              type="button"
+              onClick={handleStop}
+              title="Stop generating"
+              className="absolute right-1.5 bottom-1.5 p-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-all duration-200"
+            >
+              <Square className="w-3.5 h-3.5 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim() || fileUploadMutation.isPending}
+              className="absolute right-1.5 bottom-1.5 p-1.5 rounded-md bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-850 text-white disabled:text-zinc-600 transition-all duration-200"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          )}
         </form>
       </div>
 
