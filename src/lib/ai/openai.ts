@@ -2218,25 +2218,88 @@ async function executeToolCall(
       });
     }
   } else if (functionName === 'request_inventory_update') {
-    const sku = args.sku?.toUpperCase();
-    const product = await prisma.product.findUnique({
-      where: { sku: sku }
+    const searchKey = args.sku || '';
+    // Support lookup by SKU or by Product Name (case-insensitive)
+    const product = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { sku: { equals: searchKey, mode: 'insensitive' } },
+          { name: { contains: searchKey, mode: 'insensitive' } }
+        ]
+      }
     });
 
     if (!product) {
-      output = JSON.stringify({ error: `Product with SKU ${sku} not found.` });
+      output = JSON.stringify({ error: `Product matching '${searchKey}' not found.` });
     } else {
       const newInventory = args.newInventory;
-      const currentInventory = product.inventory;
-      const price = Number(product.price);
-      
-      const approval = await prisma.approval.create({
-        data: {
-          type: 'INVENTORY_UPDATE',
-          status: 'PENDING',
-          requestedBy: 'System Auto-Risk',
-          metadata: {
-            filename: `Restock SKU ${sku}`,
+      if (typeof newInventory !== 'number' || newInventory < 0) {
+        output = JSON.stringify({ error: `Invalid stock quantity: ${newInventory}. Must be a non-negative number.` });
+      } else {
+        const sku = product.sku;
+        const currentInventory = product.inventory;
+        const price = Number(product.price);
+        
+        // Check for duplicate pending approvals for the same SKU to prevent queue spamming
+        const existingApprovals = await prisma.approval.findMany({
+          where: {
+            type: 'INVENTORY_UPDATE',
+            status: 'PENDING'
+          }
+        });
+        
+        let duplicateApproval = null;
+        for (const app of existingApprovals) {
+          const meta = app.metadata as any;
+          const productsList = meta.products || [];
+          const hasSku = productsList.some((p: any) => p.sku === sku);
+          if (hasSku) {
+            duplicateApproval = app;
+            break;
+          }
+        }
+
+        if (duplicateApproval) {
+          output = JSON.stringify({
+            status: 'ALREADY_EXISTS',
+            approvalId: duplicateApproval.id,
+            type: 'INVENTORY_UPDATE',
+            sku: sku,
+            productName: product.name,
+            currentInventory: currentInventory,
+            newInventory: newInventory,
+            msg: `A pending restock request for ${product.name} (SKU: ${sku}) already exists (ID: #${duplicateApproval.id}).`
+          });
+        } else {
+          const approval = await prisma.approval.create({
+            data: {
+              type: 'INVENTORY_UPDATE',
+              status: 'PENDING',
+              requestedBy: 'System Auto-Risk',
+              metadata: {
+                filename: `Restock SKU ${sku}`,
+                productCount: 1,
+                products: [
+                  {
+                    sku: sku,
+                    name: product.name,
+                    price: price,
+                    inventory: newInventory
+                  }
+                ],
+                explanation: `Request to update inventory for ${product.name} (SKU: ${sku}) from ${currentInventory} to ${newInventory} units.`
+              }
+            }
+          });
+
+          output = JSON.stringify({
+            status: 'APPROVAL_REQUIRED',
+            approvalId: approval.id,
+            type: 'INVENTORY_UPDATE',
+            sku: sku,
+            productName: product.name,
+            currentInventory: currentInventory,
+            newInventory: newInventory,
             productCount: 1,
             products: [
               {
@@ -2246,31 +2309,11 @@ async function executeToolCall(
                 inventory: newInventory
               }
             ],
-            explanation: `Request to update inventory for ${product.name} (SKU: ${sku}) from ${currentInventory} to ${newInventory} units.`
-          }
+            explanation: `Manual restock requested for ${product.name} (SKU: ${sku}) to increase stock from ${currentInventory} to ${newInventory} units.`,
+            riskScore: 35
+          });
         }
-      });
-
-      output = JSON.stringify({
-        status: 'APPROVAL_REQUIRED',
-        approvalId: approval.id,
-        type: 'INVENTORY_UPDATE',
-        sku: sku,
-        productName: product.name,
-        currentInventory: currentInventory,
-        newInventory: newInventory,
-        productCount: 1,
-        products: [
-          {
-            sku: sku,
-            name: product.name,
-            price: price,
-            inventory: newInventory
-          }
-        ],
-        explanation: `Manual restock requested for ${product.name} (SKU: ${sku}) to increase stock from ${currentInventory} to ${newInventory} units.`,
-        riskScore: 35
-      });
+      }
     }
   }
   return output;
