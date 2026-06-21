@@ -2579,36 +2579,10 @@ function buildApprovalCardAppends(toolOutputs: any[]): string {
     appended += `\n\n[APPROVAL_CARD: ${JSON.stringify(cardPayload)}]`;
   }
 
-  const listApprovalsOutput = toolOutputs.find(o => o.name === 'list_pending_approvals');
-  if (listApprovalsOutput) {
-    try {
-      const approvals = JSON.parse(listApprovalsOutput.content);
-      if (Array.isArray(approvals)) {
-        for (const app of approvals) {
-          const meta = app.metadata as any;
-          const cardPayload: any = { id: app.id, type: app.type };
-          if (app.type === 'REFUND_REQUEST') {
-            cardPayload.amount = meta.amount;
-            cardPayload.riskScore = meta.riskScore;
-            cardPayload.explanation = meta.explanation;
-          } else if (app.type === 'DISCOUNT_CREATION') {
-            cardPayload.code = meta.code;
-            cardPayload.amount = meta.discountPercent;
-            cardPayload.riskScore = meta.riskScore;
-            cardPayload.explanation = meta.explanation;
-          } else if (app.type === 'INVENTORY_UPDATE') {
-            cardPayload.filename = meta.filename;
-            cardPayload.productCount = meta.productCount;
-            cardPayload.products = meta.products;
-          }
-          appended += `\n\n[APPROVAL_CARD: ${JSON.stringify(cardPayload)}]`;
-        }
-      }
-    } catch (err) {
-      console.error('Error parsing list approvals output:', err);
-    }
-  }
-
+  // NOTE: listing/reviewing pending approvals (list_pending_approvals) is a
+  // read-only action — it intentionally does NOT emit interactive approval
+  // cards. Cards appear only when an action is freshly requested
+  // (APPROVAL_REQUIRED above) or when the user explicitly acts on one.
   return appended;
 }
 
