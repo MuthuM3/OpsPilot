@@ -1948,7 +1948,8 @@ const writeTools = [
                 name: { type: 'string', description: 'Product name, e.g. "Wireless Mouse"' },
                 price: { type: 'number', description: 'Unit price in INR' },
                 inventory: { type: 'number', description: 'Initial stock quantity' },
-                category: { type: 'string', description: 'Optional category, e.g. "Electronics"' }
+                category: { type: 'string', description: 'Optional category, e.g. "Electronics"' },
+                supplier: { type: 'string', description: 'Optional supplier/vendor name' }
               },
               required: ['name', 'price', 'inventory']
             }
@@ -2149,7 +2150,7 @@ How to respond:
 - Do NOT use big headers (###, ####), marketing phrases like "Intent Match: 96%", or template-style formatting. Use clean markdown formatting.
 - When the user asks to LIST or SHOW something, return the actual records in a clean readable list. State the count, show the items, and ask a follow-up question.
 - When the user asks WHY or to ANALYZE, explain the data in plain prose. Include numbers. Identify the root cause. Give 2-3 concrete recommendations.
-- When the user asks you to DO something (refund, create promo), explain what you're doing and why approval is needed if relevant, then emit [APPROVAL_CARD: ...] or [SWITCH_TO_AGENT_CARD: ...] as required.
+- When the user asks you to DO something (refund, discount, add/restock product, approve, cancel, resolve), you MUST call the matching tool — never just describe it or say "I'll submit it". NEVER hand-write an [APPROVAL_CARD: ...] — that card is generated automatically from the tool's result. (You may emit [SWITCH_TO_AGENT_CARD: ...] yourself, only in Ask mode.)
 - End responses with 1-2 relevant action chips in square brackets e.g. [Notify Operations Manager] [Create SLA Report] — only when it genuinely helps.
 - Always use Indian Rupees (₹) for amounts.
 
@@ -2162,10 +2163,10 @@ ${JSON.stringify(businessContext, null, 2)}
 
 ${mode === 'ask'
   ? `READ-ONLY MODE: Do not perform writes. If the user asks to execute an action, explain they need Agent Mode and append [SWITCH_TO_AGENT_CARD: {"originalRequest": "<their request>"}] at the very end.`
-  : `AGENT MODE — pick the right write tool, then append [APPROVAL_CARD: ...] from the tool output:
+  : `AGENT MODE — to perform any write you MUST actually call the matching tool below (never fabricate a card or claim it's submitted without a tool call). The [APPROVAL_CARD: ...] is added automatically when a tool needs approval; after the tool runs, confirm the outcome in plain language.
   - Refund an order → request_refund.
   - Create a discount/promo code → create_discount.
-  - ADD NEW product(s) to the catalog ("add products", "create a new SKU") → create_product (pass an array of {name, price, inventory, category?}). Invent sensible demo values if the user says "just for demo".
+  - ADD NEW product(s) to the catalog ("add products", "create a new SKU") → create_product. When adding several, call it ONCE with ALL of them in the products array (never one call per product). Invent sensible demo values if the user says "just for demo".
   - Change the stock level of an EXISTING product (restock/adjust) → request_inventory_update.
   - Approve / reject a pending request ("approve it", "reject that") → approve_request / reject_request (omit approvalId to act on the most recent pending one). approve_request executes the action immediately, so confirm the result in plain language afterwards.
   - Cancel / complete / re-flag an order ("cancel ORD-1025", "mark completed") → update_order_status (executes directly, no approval).
@@ -2436,7 +2437,8 @@ async function executeToolCall(
           name: p.name.trim(),
           price: p.price,
           inventory: p.inventory,
-          category: typeof p.category === 'string' && p.category.trim() ? p.category.trim() : 'General'
+          category: typeof p.category === 'string' && p.category.trim() ? p.category.trim() : 'General',
+          supplier: typeof p.supplier === 'string' && p.supplier.trim() ? p.supplier.trim() : 'Manual Entry'
         });
       }
 
@@ -2471,11 +2473,18 @@ async function executeToolCall(
     if (role !== 'manager') {
       return JSON.stringify({
         status: 'ROLE_BLOCKED',
-        msg: 'You are acting as Operator, which cannot approve or reject. A Manager must take this action — tell the user to switch the role toggle to Manager.'
+        msg: 'Blocked by governance: the current user is in the Operator role, and only a Manager can approve or reject requests. Tell the user (warmly, one or two sentences) that approvals require Manager sign-off, and that they can switch using the "Acting as" toggle in the left sidebar. IMPORTANT: this is a ROLE, not a chat mode — never say "Manager Mode" or mention Ask/Agent mode. End your reply with exactly this chip on its own line: "Suggested Actions: [Switch to Manager role]".'
       });
     }
-    // Resolve the target approval: explicit id, else the most recent pending one.
+    // Resolve the target approval. An explicit id from the model may be STALE
+    // (e.g. the conversation listed approvals before a data re-seed), so verify
+    // it's a real PENDING approval — otherwise fall back to the most recent
+    // pending one. This keeps "approve it / approve all" working after re-seeds.
     let approvalId: string | undefined = args.approvalId;
+    if (approvalId) {
+      const candidate = await prisma.approval.findUnique({ where: { id: approvalId } });
+      if (!candidate || candidate.status !== 'PENDING') approvalId = undefined; // stale/processed → fall back
+    }
     if (!approvalId) {
       const latest = await prisma.approval.findFirst({
         where: { status: 'PENDING' },
@@ -2616,8 +2625,8 @@ export async function processChat(messages: ChatMessage[], mode: 'ask' | 'agent'
     const openai = new OpenAI({
       apiKey: apiKey || 'dummy-key',
       baseURL: baseURL || undefined,
-      timeout: 8000,   // fail fast — 8 s hard cap
-      maxRetries: 0    // no SDK-level retries; we handle fallback ourselves
+      timeout: 30000,  // tool-calling + multi-step needs headroom (was 8s, too tight)
+      maxRetries: 1    // one retry to ride out a transient blip
     });
     
     // Inject the structured conversation memory + real database figures directly in system prompt
@@ -2717,8 +2726,8 @@ export async function* streamChat(
     const openai = new OpenAI({
       apiKey: apiKey || 'dummy-key',
       baseURL: baseURL || undefined,
-      timeout: 8000,   // fail fast — 8 s hard cap
-      maxRetries: 0    // no SDK-level retries; we handle fallback ourselves
+      timeout: 30000,  // tool-calling + multi-step needs headroom (was 8s, too tight)
+      maxRetries: 1    // one retry to ride out a transient blip
     });
 
     const systemMessage = buildSystemMessage(mode, conversationContext, detectedIntent, selectedTool, businessContext);
@@ -2735,7 +2744,7 @@ export async function* streamChat(
     const tools = toolsForMode(mode);
     const convo: any[] = [...baseMessages];
     const allToolOutputs: any[] = [];
-    const MAX_STEPS = 5;
+    const MAX_STEPS = 3;
 
     for (let step = 0; step < MAX_STEPS; step++) {
       const resp = await openai.chat.completions.create({
@@ -2778,6 +2787,9 @@ export async function* streamChat(
     const errMessage = err?.message ?? String(err);
     logToFile(`[streamChat ERROR] LLM call failed: ${errMessage}. Config: model=${modelName}, baseURL=${baseURL}, hasApiKey=${hasApiKey}`);
     markEndpointDown(err);
-    yield `⚠️ **LLM Connection Failed**: ${errMessage}\n\n*Please verify that your \`OPENAI_API_KEY\` and \`OPENAI_API_BASE_URL\` are correct.*`;
+    const isTimeout = /timed out|timeout|ETIMEDOUT|aborted/i.test(errMessage);
+    yield isTimeout
+      ? `⏳ That took longer than expected and timed out. Please try again — the model can be slow on multi-step actions.`
+      : `⚠️ **LLM Connection Failed**: ${errMessage}\n\n*Please verify that your \`OPENAI_API_KEY\` and \`OPENAI_API_BASE_URL\` are correct.*`;
   }
 }

@@ -57,7 +57,8 @@ export async function executeApproval(approvalId: string): Promise<ApprovalResul
               name: item.name || `Product ${item.sku}`,
               inventory: item.inventory,
               price: item.price,
-              category: item.category || 'Supplier Import'
+              category: item.category || 'Supplier Import',
+              supplier: item.supplier || 'Manual Entry'
             }
           });
           await logExecutionEvent(execution.id, `✓ Created new Product ${item.sku}: Stock set to ${item.inventory}, Price set to ₹${item.price}`, 'INFO');

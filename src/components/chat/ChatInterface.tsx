@@ -119,7 +119,8 @@ export default function ChatInterface() {
     setChatInputPreset,
     activeWorkflow,
     setActiveWorkflow,
-    role
+    role,
+    setRole
   } = useWorkspace();
   
   const [width, setWidth] = useState(420);
@@ -433,6 +434,11 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
+      // A chat turn may have mutated data (approve, add/restock product, refund,
+      // cancel order, resolve ticket...). Refresh every workspace view so the
+      // change reflects immediately without navigating away and back.
+      ['dashboard', 'products', 'orders', 'approvals', 'timeline', 'refunds', 'customers', 'tickets']
+        .forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
     }
   };
 
@@ -774,7 +780,14 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
   const handleNextActionClick = (action: string) => {
     // Clean prefix dot/bullet if present
     const cleanAction = action.replace(/^[•\s\-\*]+/g, '').trim();
-    
+
+    // Switching to Manager role is a UI state change, not a chat message.
+    if (/switch.*manager|manager\s*role|become\s*manager/i.test(cleanAction)) {
+      setRole('manager');
+      showToast('You are now acting as Manager — you can approve and reject requests.', 'success', 'ROLE: MANAGER');
+      return;
+    }
+
     if (cleanAction === 'Review Similar Refunds') {
       setActiveTab('approvals');
     } else if (cleanAction === 'View Promotion Metrics') {
@@ -1740,7 +1753,7 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
     'refund-flow': ['Refund Order #ORD-1024', 'Create discount code SORRY25 for 25%', 'Which products are causing most refunds?'],
     'inventory-flow': ['Add 3 new demo products', 'Restock everything below 10 units', 'Show low-stock items'],
     'discount-flow': ['Create discount code PROMO50 with 50% discount', 'Create discount code VIP10 with 10% discount', 'Show active discount campaigns'],
-    'support-flow': ['What are delayed shipments for today?', "Show Sarah's support tickets"]
+    'support-flow': ['Which shipments are delayed?', "Show Sarah's support tickets"]
   } as Record<string, string[]>)[activeChatId] || ['Add 3 new demo products', 'Refund Order #ORD-1024', 'What needs my attention today?'];
 
   // Collapsed State Check

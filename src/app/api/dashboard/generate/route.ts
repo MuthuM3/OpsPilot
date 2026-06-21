@@ -359,21 +359,23 @@ export async function POST() {
       }
     });
 
-    // 3. Inventory update approval
+    // 3. Inventory update approval — use the same metadata shape the execution
+    // engine and Approvals Hub expect (products[] + productCount), so the card
+    // renders correctly and approving it actually updates the stock.
     await prisma.approval.create({
       data: {
         type: 'INVENTORY_UPDATE',
         status: 'PENDING',
         requestedBy: 'Apex Goods Inc.',
         metadata: {
-          productId: products[0].id,
-          sku: 'PROD-001',
-          productName: 'Premium Leather Jacket',
-          currentInventory: 45,
-          requestedInventory: 150,
+          filename: 'Restock PROD-001 (Apex Goods)',
+          productCount: 1,
+          products: [
+            { sku: 'PROD-001', name: 'Premium Leather Jacket', price: 4999.00, inventory: 150 }
+          ],
           reasons: ['Bulk inventory increase exceeds 100-unit threshold'],
           riskScore: 40,
-          explanation: 'Supplier Apex Goods requested inventory adjustment for PROD-001 from 45 to 150.'
+          explanation: 'Supplier Apex Goods requested inventory adjustment for PROD-001 from 45 to 150 units.'
         }
       }
     });

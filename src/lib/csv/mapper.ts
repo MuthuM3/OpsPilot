@@ -133,8 +133,11 @@ export function generatePreview(
     
     let price = 0;
     if (priceIdx !== -1 && row[priceIdx]) {
-      const rawPrice = String(row[priceIdx]).replace(/[^0-9.]/g, '');
-      price = parseFloat(rawPrice) || 0;
+      // Strip thousands separators, then grab the first real number. This avoids
+      // bugs like "Rs. 899" -> ".899" -> 0.899 (the dot in "Rs." was being kept).
+      const cleaned = String(row[priceIdx]).replace(/,/g, '');
+      const match = cleaned.match(/\d+(\.\d+)?/);
+      price = match ? parseFloat(match[0]) : 0;
     }
     
     let inventory = 0;
