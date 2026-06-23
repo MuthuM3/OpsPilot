@@ -72,6 +72,18 @@ export default function WorkflowHUD() {
         { key: 'approval_required', label: 'Approvals' },
         { key: 'completed', label: 'Active' }
       ]
+    : wfType === 'inventory'
+    ? [
+        { key: 'draft', label: 'Draft' },
+        { key: 'review', label: 'Review' },
+        { key: 'approval_required', label: 'Approvals' },
+        { key: 'completed', label: 'Synced' }
+      ]
+    : wfType === 'ticket'
+    ? [
+        { key: 'draft', label: 'Review' },
+        { key: 'completed', label: 'Resolved' }
+      ]
     : [
         { key: 'draft', label: 'Draft' },
         { key: 'review', label: 'Review' },
@@ -94,8 +106,11 @@ export default function WorkflowHUD() {
                 <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block leading-none">
                   Active Workflow
                 </span>
-                <span className="text-xs font-bold text-zinc-150 tracking-tight">
-                  {wfType === 'discount' ? `Promo: ${wfId}` : `Refund: ${wfId}`}
+                <span className="text-xs font-bold text-zinc-100 tracking-tight">
+                  {wfType === 'discount' ? `Promo: ${wfId}` : 
+                   wfType === 'refund' ? `Refund: ${wfId}` :
+                   wfType === 'inventory' ? `Restock: ${wfId}` :
+                   `Support: ${wfId}`}
                 </span>
               </div>
             </div>
@@ -142,7 +157,7 @@ export default function WorkflowHUD() {
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               <div>
                 <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block leading-none flex items-center gap-1 group-hover:text-zinc-300">
-                  <span>Autonomous Swarm Status</span>
+                  <span>System Status</span>
                   <ChevronDown className="w-2.5 h-2.5 text-zinc-500" />
                 </span>
                 <span className="text-[9px] text-zinc-550 font-semibold uppercase tracking-wider block mt-0.5">
@@ -156,24 +171,24 @@ export default function WorkflowHUD() {
                 <div className="fixed inset-0 z-40" onClick={() => setShowHealthDropdown(false)} />
                 <div className="absolute left-0 mt-2 w-64 rounded-xl border border-zinc-850 bg-[#090d16]/95 backdrop-blur-2xl shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150 space-y-3">
                   <span className="text-[9px] font-bold uppercase tracking-wider text-purple-400 block pb-1.5 border-b border-zinc-800/60">
-                    Swarm Nodes Activity
+                    Active Operational Services
                   </span>
                   <div className="space-y-2 text-[10px] text-zinc-400">
                     <div className="flex justify-between items-center">
-                      <span>Coordinator Agent</span>
-                      <span className="text-emerald-450 font-bold">● LISTENING</span>
+                      <span>Coordinator Service</span>
+                      <span className="text-emerald-450 font-bold">● ONLINE</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span>Refund Operations Agent</span>
-                      <span className="text-emerald-450 font-bold">● LISTENING</span>
+                      <span>Refund Operations Service</span>
+                      <span className="text-emerald-450 font-bold">● ONLINE</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span>Inventory Sync Agent</span>
-                      <span className="text-emerald-450 font-bold">● LISTENING</span>
+                      <span>Inventory Sync Service</span>
+                      <span className="text-emerald-450 font-bold">● ONLINE</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span>Support Dispatcher Agent</span>
-                      <span className="text-emerald-450 font-bold">● LISTENING</span>
+                      <span>Support Dispatcher Service</span>
+                      <span className="text-emerald-450 font-bold">● ONLINE</span>
                     </div>
                   </div>
                 </div>
@@ -263,7 +278,7 @@ export default function WorkflowHUD() {
           </div>
         </div>
 
-        {/* AI Copilot Toggle Button */}
+        {/* Operations Copilot Toggle Button */}
         <button
           onClick={() => setIsChatOpen(!isChatOpen)}
           className={`px-3 py-1.5 rounded-xl border text-[10px] font-bold tracking-wide transition-all flex items-center gap-1.5 hover:scale-105 active:scale-95 cursor-pointer shrink-0 ${
@@ -273,7 +288,7 @@ export default function WorkflowHUD() {
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>AI Copilot</span>
+          <span>Operations Copilot</span>
         </button>
       </div>
 

@@ -86,54 +86,54 @@ export default function CopilotPanel() {
  
   const scenarios = [
     {
-      id: 'high-risk-refund',
-      title: 'High-Risk Refund Gate',
-      desc: 'Test a refund request above ₹10,000 threshold for a VIP customer with return history.',
-      prompt: 'Refund Order #ORD-1024',
-      tab: 'refunds',
-      chatId: 'refund-flow',
-      mode: 'agent' as const,
-      toast: 'Configured refund-flow in Agent Mode. Submit the preset prompt in chat!'
-    },
-    {
-      id: 'bypass-refund',
-      title: 'Policy-Bypass Refund',
-      desc: 'Test low-risk refund (under ₹10,000) that automatically executes without manager review.',
-      prompt: 'Refund Order #ORD-1023',
-      tab: 'refunds',
-      chatId: 'refund-flow',
-      mode: 'agent' as const,
-      toast: 'Configured refund-flow in Agent Mode. Submit the preset prompt in chat!'
-    },
-    {
-      id: 'read-only-lock',
-      title: 'Read-Only Mode Lock',
-      desc: 'Attempt to request a refund in read-only Ask Mode to test policy block.',
-      prompt: 'Refund Order #ORD-1024',
-      tab: 'refunds',
-      chatId: 'support-flow',
-      mode: 'ask' as const,
-      toast: 'Configured support-flow in Ask Mode. Submit the preset prompt in chat!'
-    },
-    {
-      id: 'high-discount',
-      title: 'High-Discount Promo Gate',
-      desc: 'Request a discount exceeding the 20% safe threshold, triggering manager gate.',
-      prompt: 'Create discount code promo50 with 50% discount',
-      tab: 'approvals',
-      chatId: 'discount-flow',
-      mode: 'agent' as const,
-      toast: 'Configured discount-flow in Agent Mode. Submit the preset prompt in chat!'
-    },
-    {
-      id: 'inventory-mapping',
-      title: 'Messy CSV Mapping',
-      desc: 'Show recommendation preview of column mappings for supplier CSV sheet.',
-      prompt: 'Show supplier mappings',
+      id: 'low-stock-restock',
+      title: 'Low Stock Restock Gate',
+      desc: 'Verify safety stocks and restock Ergonomic Office Chair (triggers threshold limit approval).',
+      prompt: 'Check low stock products',
       tab: 'inventory',
       chatId: 'inventory-flow',
       mode: 'agent' as const,
-      toast: 'Configured inventory-flow in Agent Mode. Submit the preset prompt in chat!'
+      toast: 'Selected Low Stock Restock scenario. Submit the preset prompt in chat!'
+    },
+    {
+      id: 'shipment-delay-audit',
+      title: 'Shipment Delay Audit',
+      desc: 'Investigate SLA delay on Sarah Connor order ORD-1022 and resolve ticket TKT-001.',
+      prompt: 'Why is order ORD-1022 delayed?',
+      tab: 'refunds',
+      chatId: 'support-flow',
+      mode: 'ask' as const,
+      toast: 'Selected Shipment Delay Audit scenario. Submit the preset prompt in chat!'
+    },
+    {
+      id: 'high-risk-refund',
+      title: 'High-Risk Refund Gate',
+      desc: 'Submit and review high-risk refund for ORD-1024 Alice Smith (blocked by returns velocity check).',
+      prompt: 'Refund ORD-1024',
+      tab: 'refunds',
+      chatId: 'refund-flow',
+      mode: 'agent' as const,
+      toast: 'Selected High-Risk Refund Gate scenario. Submit the preset prompt in chat!'
+    },
+    {
+      id: 'discount-governance',
+      title: 'Discount Margin Policy',
+      desc: 'Create coupon code SUMMER50 with 50% discount (blocked by 20% margin risk policy).',
+      prompt: 'Create discount code SUMMER50',
+      tab: 'approvals',
+      chatId: 'discount-flow',
+      mode: 'agent' as const,
+      toast: 'Selected Discount Margin Policy scenario. Submit the preset prompt in chat!'
+    },
+    {
+      id: 'supplier-csv-import',
+      title: 'Supplier CSV Mapping',
+      desc: 'Map messy supplier headers to catalog schema and normalize catalog SKU mismatches.',
+      prompt: 'Import supplier inventory CSV',
+      tab: 'inventory',
+      chatId: 'inventory-flow',
+      mode: 'agent' as const,
+      toast: 'Selected Supplier CSV Mapping scenario. Submit the preset prompt in chat!'
     }
   ];
  
@@ -196,7 +196,7 @@ export default function CopilotPanel() {
             </span>
           </div>
           <div className="flex justify-between items-center text-[10px]">
-            <span className="text-zinc-500">Autonomous Swarm:</span>
+            <span className="text-zinc-500">System Monitor:</span>
             <span className="text-purple-400 font-bold text-[9px] animate-pulse">
               ● MONITORING
             </span>
@@ -212,7 +212,10 @@ export default function CopilotPanel() {
             <div className="space-y-2">
               <div className="flex justify-between items-center text-[10px]">
                 <span className="text-zinc-200 font-semibold uppercase">
-                  {activeWorkflow.activeObjectType === 'discount' ? 'Discount Campaign' : 'Refund Process'}
+                  {activeWorkflow.activeObjectType === 'discount' ? 'Discount Campaign' : 
+                   activeWorkflow.activeObjectType === 'refund' ? 'Refund Process' :
+                   activeWorkflow.activeObjectType === 'inventory' ? 'Inventory Update' :
+                   'Support Investigation'}
                 </span>
                 <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide ${
                   activeWorkflow.workflowState === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
@@ -224,17 +227,32 @@ export default function CopilotPanel() {
               </div>
               <div className="text-[10px] text-zinc-400 space-y-1">
                 <div>Object ID: <strong className="text-zinc-300">{activeWorkflow.activeObjectId || 'N/A'}</strong></div>
-                {activeWorkflow.activeObjectType === 'discount' ? (
+                {activeWorkflow.activeObjectType === 'discount' && (
                   <>
                     <div>Value: <strong className="text-zinc-300">{activeWorkflow.metadata?.discountPercent}% Off</strong></div>
                     <div>Expiry: <strong className="text-zinc-300">{activeWorkflow.metadata?.expiry || 'Not Set'}</strong></div>
                     <div>Segment: <strong className="text-zinc-300">{activeWorkflow.metadata?.segment || 'All Customers'}</strong></div>
                   </>
-                ) : (
+                )}
+                {activeWorkflow.activeObjectType === 'refund' && (
                   <>
                     <div>Customer: <strong className="text-zinc-300">{activeWorkflow.metadata?.customerName || 'N/A'}</strong></div>
                     <div>Amount: <strong className="text-zinc-300">₹{activeWorkflow.metadata?.amount?.toLocaleString('en-IN') || '0'}</strong></div>
                     <div>Reason: <strong className="text-zinc-300">{activeWorkflow.metadata?.reason || 'Not Set'}</strong></div>
+                  </>
+                )}
+                {activeWorkflow.activeObjectType === 'inventory' && (
+                  <>
+                    <div>Product: <strong className="text-zinc-300">{activeWorkflow.metadata?.productName || 'N/A'}</strong></div>
+                    <div>Target Stock: <strong className="text-zinc-300">{activeWorkflow.metadata?.requestedStock || '50'} units</strong></div>
+                    <div>Previous Stock: <strong className="text-zinc-300">{activeWorkflow.metadata?.currentStock || '15'} units</strong></div>
+                  </>
+                )}
+                {activeWorkflow.activeObjectType === 'ticket' && (
+                  <>
+                    <div>Customer: <strong className="text-zinc-300">{activeWorkflow.metadata?.customerName || 'N/A'}</strong></div>
+                    <div>Order: <strong className="text-zinc-300">{activeWorkflow.metadata?.orderNumber || 'N/A'}</strong></div>
+                    <div>SLA Status: <strong className="text-rose-450 font-bold">SLA Exceeded</strong></div>
                   </>
                 )}
               </div>

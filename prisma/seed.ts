@@ -14,6 +14,8 @@ async function main() {
   await prisma.customer.deleteMany({});
   await prisma.product.deleteMany({});
   await prisma.inventoryUpload.deleteMany({});
+  await prisma.discount.deleteMany({});
+  await prisma.conversationState.deleteMany({});
 
   console.log('Seeding products...');
   const products = await Promise.all([
@@ -45,7 +47,7 @@ async function main() {
         name: 'Ergonomic Office Chair',
         description: 'High-back mesh office chair with lumbar support and adjustable armrests.',
         price: 8500.00,
-        inventory: 15,
+        inventory: 15, // Low stock #1
         category: 'Furniture',
         supplier: 'ComfortSeat Co.',
       },
@@ -70,6 +72,39 @@ async function main() {
         inventory: 35,
         category: 'Electronics',
         supplier: 'VoltAudio Ltd.',
+      },
+    }),
+    prisma.product.create({
+      data: {
+        sku: 'PROD-006',
+        name: 'Wireless Mouse',
+        description: 'Ergonomic wireless mouse with adjustable DPI.',
+        price: 899.00,
+        inventory: 8, // Low stock #2
+        category: 'Electronics',
+        supplier: 'VoltAudio Ltd.',
+      },
+    }),
+    prisma.product.create({
+      data: {
+        sku: 'PROD-007',
+        name: 'USB-C Hub',
+        description: 'Multi-port USB-C adapter with HDMI, USB 3.0, and PD.',
+        price: 1299.00,
+        inventory: 5, // Low stock #3
+        category: 'Electronics',
+        supplier: 'VoltAudio Ltd.',
+      },
+    }),
+    prisma.product.create({
+      data: {
+        sku: 'PROD-008',
+        name: 'Laptop Stand',
+        description: 'Adjustable aluminum laptop stand for desk ventilation.',
+        price: 1999.00,
+        inventory: 9, // Low stock #4
+        category: 'Furniture',
+        supplier: 'ComfortSeat Co.',
       },
     }),
   ]);
@@ -125,7 +160,7 @@ async function main() {
     },
   });
 
-  // Sarah's order (Delayed shipment)
+  // Sarah's order (Delayed shipment #1)
   const order2 = await prisma.order.create({
     data: {
       orderNumber: 'ORD-1022',
@@ -167,27 +202,20 @@ async function main() {
       status: OrderStatus.COMPLETED,
       totalAmount: 12199.00,
       items: {
-        create: {
-          productId: products[0].id, // Leather Jacket (4999)
-          quantity: 1,
-          price: 4999.00,
-        },
+        create: [
+          {
+            productId: products[0].id, // Leather Jacket (4999)
+            quantity: 1,
+            price: 4999.00,
+          },
+          {
+            productId: products[4].id, // Smartwatch (7200)
+            quantity: 1,
+            price: 7200.00,
+          }
+        ]
       },
     },
-  });
-  // Add a second item to ORD-1024 to make it 12,199
-  await prisma.orderItem.create({
-    data: {
-      orderId: order4.id,
-      productId: products[4].id, // Smartwatch (6999)
-      quantity: 1,
-      price: 7200.00, // Adjusted price
-    },
-  });
-  // Update order4 total
-  await prisma.order.update({
-    where: { id: order4.id },
-    data: { totalAmount: 12199.00 }
   });
 
   // Bob's orders
@@ -216,21 +244,38 @@ async function main() {
       items: {
         create: [
           {
-            productId: products[0].id, // Leather Jacket (4999)
+            productId: products[0].id,
             quantity: 1,
             price: 4999.00,
           },
           {
-            productId: products[2].id, // Chair (8500)
+            productId: products[2].id,
             quantity: 1,
             price: 8500.00,
           },
           {
-            productId: products[1].id, // Headphones (2000 - sale)
+            productId: products[1].id,
             quantity: 1,
             price: 2000.00,
           }
         ]
+      },
+    },
+  });
+
+  // John's delayed order (Delayed shipment #2)
+  const order7 = await prisma.order.create({
+    data: {
+      orderNumber: 'ORD-1027',
+      customerId: customerJohn.id,
+      status: OrderStatus.DELAYED,
+      totalAmount: 2199.00,
+      items: {
+        create: {
+          productId: products[7].id, // Laptop Stand
+          quantity: 1,
+          price: 1999.00,
+        },
       },
     },
   });
@@ -242,7 +287,7 @@ async function main() {
       customerId: customerSarah.id,
       subject: 'Where is my order #ORD-1022?',
       description: 'The tracking status shows delayed for the last 3 days. This was supposed to be a birthday gift. Please provide an update.',
-      status: TicketStatus.OPEN,
+      status: TicketStatus.OPEN, // Open support ticket #1
       priority: TicketPriority.HIGH,
     },
   });
@@ -264,7 +309,7 @@ async function main() {
       customerId: customerAlice.id,
       subject: 'Defective product received',
       description: 'The smartwatch screen has a hairline scratch. I would like a refund for order #ORD-1024 as it is damaged.',
-      status: TicketStatus.OPEN,
+      status: TicketStatus.OPEN, // Open support ticket #2
       priority: TicketPriority.MEDIUM,
     },
   });
@@ -275,17 +320,156 @@ async function main() {
       customerId: customerBob.id,
       subject: 'Payment double charged',
       description: 'I checked my bank statement and I was charged twice for order #ORD-1026. Please check and refund the duplicate payment.',
-      status: TicketStatus.OPEN,
+      status: TicketStatus.OPEN, // Open support ticket #3
       priority: TicketPriority.HIGH,
     },
   });
 
-  // Seed previous refund count simulation context for Alice
-  // We can simulate Alice having had 3 previous refunds by creating three refund records already marked as APPROVED/EXECUTED.
-  // Wait, let's create a few mock refunds for Alice to make the risk engine query reflect a history of 3 previous refunds!
-  // To do that, we create 3 old refunded orders or we can write the count directly or query them.
-  // Creating historical refund entries is better! Let's do that:
-  // Create orders for Alice that are refunded
+  await prisma.ticket.create({
+    data: {
+      ticketNumber: 'TKT-005',
+      customerId: customerJohn.id,
+      subject: 'Incorrect item color received',
+      description: 'I received the silver laptop stand instead of the space grey one I ordered. Can I get a replacement?',
+      status: TicketStatus.OPEN, // Open support ticket #4
+      priority: TicketPriority.MEDIUM,
+    },
+  });
+
+  await prisma.ticket.create({
+    data: {
+      ticketNumber: 'TKT-006',
+      customerId: customerBob.id,
+      subject: 'Promo code VIPSPECIAL50 not applying',
+      description: 'I received a promo code VIPSPECIAL50 but it gives me an error at checkout saying approval pending. Please help.',
+      status: TicketStatus.OPEN, // Open support ticket #5
+      priority: TicketPriority.LOW,
+    },
+  });
+
+  console.log('Seeding pending approvals...');
+  // Approval 1 (Refund request ORD-1024 - Alice Smith)
+  const app1 = await prisma.approval.create({
+    data: {
+      type: 'REFUND_REQUEST',
+      status: ApprovalStatus.PENDING, // Pending approval #1
+      requestedBy: 'System Auto-Risk',
+      reason: 'Refund exceeds ₹10,000 threshold and customer return frequency check flagged (3 refunds in 60 days).',
+      metadata: {
+        orderId: order4.id,
+        orderNumber: 'ORD-1024',
+        customerName: 'Alice Smith',
+        amount: 12199,
+        riskScore: 88,
+        explanation: 'Refund blocked because: Customer already requested 3 refunds in 60 days. Refund amount ₹12,199 exceeds ₹10,000 threshold. Active dispute exists.',
+        reasons: [
+          'Customer already requested 3 refunds in 60 days',
+          'Refund amount ₹12,199 exceeds ₹10,000 threshold',
+          'Active dispute exists'
+        ]
+      }
+    }
+  });
+
+  // Attach Refund record to order4 linked to app1
+  await prisma.refund.create({
+    data: {
+      orderId: order4.id,
+      amount: 12199,
+      reason: 'Defective product - smartwatch screen scratch',
+      status: ApprovalStatus.PENDING,
+      riskScore: 88,
+      riskExplanation: 'Refund request is flagged due to exceeding single-operator limit and frequency threshold (3 refunds in last 60 days).',
+      approvalId: app1.id
+    }
+  });
+
+  // Approval 2 (Refund request ORD-1025 - Bob Johnson)
+  const app2 = await prisma.approval.create({
+    data: {
+      type: 'REFUND_REQUEST',
+      status: ApprovalStatus.PENDING, // Pending approval #2
+      requestedBy: 'System Auto-Risk',
+      reason: 'Value exceeds operator safe-limit.',
+      metadata: {
+        orderId: order5.id,
+        orderNumber: 'ORD-1025',
+        customerName: 'Bob Johnson',
+        amount: 3200,
+        riskScore: 40,
+        explanation: 'Refund requested without prior ticket description. Order is currently in PENDING state.'
+      }
+    }
+  });
+
+  await prisma.refund.create({
+    data: {
+      orderId: order5.id,
+      amount: 3200,
+      reason: 'Customer cancelled order before shipping',
+      status: ApprovalStatus.PENDING,
+      riskScore: 40,
+      riskExplanation: 'Refund requested on non-completed order.',
+      approvalId: app2.id
+    }
+  });
+
+  // Approval 3 (Refund request ORD-1026 - Bob Johnson)
+  const app3 = await prisma.approval.create({
+    data: {
+      type: 'REFUND_REQUEST',
+      status: ApprovalStatus.PENDING, // Pending approval #3
+      requestedBy: 'System Auto-Risk',
+      reason: 'Transaction value exceeds high-value safety bounds.',
+      metadata: {
+        orderId: order6.id,
+        orderNumber: 'ORD-1026',
+        customerName: 'Bob Johnson',
+        amount: 15499,
+        riskScore: 75,
+        explanation: 'Refund amount ₹15,499 exceeds the ₹10,000 safety threshold.'
+      }
+    }
+  });
+
+  await prisma.refund.create({
+    data: {
+      orderId: order6.id,
+      amount: 15499,
+      reason: 'Multiple items return request',
+      status: ApprovalStatus.PENDING,
+      riskScore: 75,
+      riskExplanation: 'Transaction value exceeds high-value safety bounds.',
+      approvalId: app3.id
+    }
+  });
+
+  // Approval 4 (Discount Request VIPSPECIAL50 - 50% discount)
+  await prisma.approval.create({
+    data: {
+      type: 'DISCOUNT_CREATION',
+      status: ApprovalStatus.PENDING, // Discount Request #1
+      requestedBy: 'Marketing Coordinator',
+      reason: 'Promo code exceeds standard policy limit of 20% margin risk.',
+      metadata: {
+        code: 'VIPSPECIAL50',
+        discountPercent: 50,
+        riskScore: 65,
+        explanation: 'The promo code exceeds the standard 20% policy limit for self-serve discounts.'
+      }
+    }
+  });
+
+  console.log('Seeding discounts...');
+  await prisma.discount.createMany({
+    data: [
+      { code: 'VIP10', discountPercent: 10, status: 'ACTIVE' },
+      { code: 'SAVE20', discountPercent: 20, status: 'ACTIVE' },
+      { code: 'VIPSPECIAL50', discountPercent: 50, status: 'PENDING_APPROVAL' }
+    ]
+  });
+
+  // Create Alice's 3 historical refunds to reflect returns history
   for (let i = 1; i <= 3; i++) {
     const historicalOrder = await prisma.order.create({
       data: {

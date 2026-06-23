@@ -717,6 +717,301 @@ async function handleMockChat(
   const meta = context.businessContext;
   const plan = context.queryPlan;
 
+  const q = message.toLowerCase().trim();
+
+  // Story 1: Check low stock products
+  if (q.includes('low stock') || q.includes('check inventory') || q === 'check safety stock') {
+    return `3 products are below safety stock.
+
+- **Ergonomic Office Chair** — 15 units
+- **Wireless Keyboard** — 8 units
+- **USB-C Dock** — 5 units
+
+Recommended actions:
+[Restock Ergonomic Office Chair]`;
+  }
+
+  // Story 1 execution: Restock Ergonomic Office Chair
+  if (q === 'restock ergonomic office chair' || q === 'restock office chair' || (q.includes('restock') && q.includes('chair') && !q.includes('to'))) {
+    const sku = 'PROD-003';
+    const currentInventory = 15;
+
+    if (chatId) {
+      await prisma.conversationState.upsert({
+        where: { chatId },
+        update: {
+          activeObjectType: 'inventory',
+          activeObjectId: sku,
+          activeWorkflow: 'inventory_restock',
+          workflowState: 'draft',
+          metadata: { sku, name: 'Ergonomic Office Chair', currentInventory, newInventory: null, status: 'DRAFT' }
+        },
+        create: {
+          chatId,
+          activeObjectType: 'inventory',
+          activeObjectId: sku,
+          activeWorkflow: 'inventory_restock',
+          workflowState: 'draft',
+          metadata: { sku, name: 'Ergonomic Office Chair', currentInventory, newInventory: null, status: 'DRAFT' }
+        }
+      });
+    }
+
+    const wfCard = JSON.stringify({
+      activeObjectType: 'inventory',
+      activeObjectId: sku,
+      activeWorkflow: 'inventory_restock',
+      workflowState: 'draft',
+      metadata: { sku, name: 'Ergonomic Office Chair', currentInventory, newInventory: null, status: 'DRAFT', missing: ['Quantity'], actions: ['Set Quantity'] }
+    });
+
+    return `Draft inventory update created for **Ergonomic Office Chair** (PROD-003).
+
+Missing:
+□ Quantity
+
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Set quantity to 50] [Cancel]`;
+  }
+
+  // Story 1 execution with specified quantity directly
+  if (q === 'restock ergonomic office chair to 50' || q === 'restock office chair to 50') {
+    const sku = 'PROD-003';
+    const currentInventory = 15;
+
+    if (chatId) {
+      await prisma.conversationState.upsert({
+        where: { chatId },
+        update: {
+          activeObjectType: 'inventory',
+          activeObjectId: sku,
+          activeWorkflow: 'inventory_restock',
+          workflowState: 'review',
+          metadata: { sku, name: 'Ergonomic Office Chair', currentInventory, newInventory: 50, status: 'CONFIGURED' }
+        },
+        create: {
+          chatId,
+          activeObjectType: 'inventory',
+          activeObjectId: sku,
+          activeWorkflow: 'inventory_restock',
+          workflowState: 'review',
+          metadata: { sku, name: 'Ergonomic Office Chair', currentInventory, newInventory: 50, status: 'CONFIGURED' }
+        }
+      });
+    }
+
+    const wfCard = JSON.stringify({
+      activeObjectType: 'inventory',
+      activeObjectId: sku,
+      activeWorkflow: 'inventory_restock',
+      workflowState: 'review',
+      metadata: { sku, name: 'Ergonomic Office Chair', currentInventory, newInventory: 50, status: 'CONFIGURED', missing: [], actions: ['Proceed'] }
+    });
+
+    return `Draft inventory update created for **Ergonomic Office Chair** (PROD-003).
+
+Restock target set to **50 units** (current: ${currentInventory}). All parameters configured.
+
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Proceed] [Cancel]`;
+  }
+
+  // Story 2: Shipment delay check (Sarah Connor ORD-1022)
+  if (q.includes('delayed') || q.includes('sarah connor') || q.includes('tkt-001') || q.includes('ord-1022') || q === 'investigate delay') {
+    if (chatId) {
+      await prisma.conversationState.upsert({
+        where: { chatId },
+        update: {
+          activeObjectType: 'ticket',
+          activeObjectId: 'TKT-001',
+          activeWorkflow: 'shipment_delay',
+          workflowState: 'review',
+          metadata: { ticketNumber: 'TKT-001', customerName: 'Sarah Connor', orderNumber: 'ORD-1022', reason: 'Carrier delay - package stuck at BLR hub', status: 'REVIEWING' }
+        },
+        create: {
+          chatId,
+          activeObjectType: 'ticket',
+          activeObjectId: 'TKT-001',
+          activeWorkflow: 'shipment_delay',
+          workflowState: 'review',
+          metadata: { ticketNumber: 'TKT-001', customerName: 'Sarah Connor', orderNumber: 'ORD-1022', reason: 'Carrier delay - package stuck at BLR hub', status: 'REVIEWING' }
+        }
+      });
+    }
+
+    const wfCard = JSON.stringify({
+      activeObjectType: 'ticket',
+      activeObjectId: 'TKT-001',
+      activeWorkflow: 'shipment_delay',
+      workflowState: 'review',
+      metadata: { ticketNumber: 'TKT-001', customerName: 'Sarah Connor', orderNumber: 'ORD-1022', reason: 'Carrier delay - package stuck at BLR hub', status: 'REVIEWING', missing: [], actions: ['Notify Customer'] }
+    });
+
+    return `ACTIVE CASE: Ticket **TKT-001** (Sarah Connor) regarding delayed Order **ORD-1022**.
+
+OpsPilot checked carrier APIs: Order is stuck at the warehouse due to Bangalore transit delays. Carrier SLA exceeded by 2 days.
+
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Notify Customer] [Escalate Logistics] [Cancel]`;
+  }
+
+  // Story 3: High Risk Refund (Alice Smith ORD-1024)
+  if ((q.includes('refund') || q.includes('payout')) && (q.includes('ord-1024') || q.includes('1024') || q.includes('alice'))) {
+    const orderNumber = 'ORD-1024';
+    const customerName = 'Alice Smith';
+    const amount = 12199;
+
+    if (chatId) {
+      await prisma.conversationState.upsert({
+        where: { chatId },
+        update: {
+          activeObjectType: 'refund',
+          activeObjectId: orderNumber,
+          activeWorkflow: 'refund_processing',
+          workflowState: 'draft',
+          metadata: { orderNumber, customerName, amount, ticketNumber: 'TKT-003', reason: null, status: 'DRAFT' }
+        },
+        create: {
+          chatId,
+          activeObjectType: 'refund',
+          activeObjectId: orderNumber,
+          activeWorkflow: 'refund_processing',
+          workflowState: 'draft',
+          metadata: { orderNumber, customerName, amount, ticketNumber: 'TKT-003', reason: null, status: 'DRAFT' }
+        }
+      });
+    }
+
+    const wfCard = JSON.stringify({
+      activeObjectType: 'refund',
+      activeObjectId: orderNumber,
+      activeWorkflow: 'refund_processing',
+      workflowState: 'draft',
+      metadata: { orderNumber, customerName, amount, ticketNumber: 'TKT-003', reason: null, status: 'DRAFT', missing: ['Reason for Refund'], actions: ['Set Reason'] }
+    });
+
+    return `I've initiated a refund processing workflow for **Order #${orderNumber}** (customer: **${customerName}**, amount: **₹${amount.toLocaleString('en-IN')}**).
+
+Missing:
+□ Reason for Refund
+
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Set reason to Defective] [Cancel]`;
+  }
+
+  // Story 3 generic trigger
+  if (q === 'refund order' || q === 'refund request') {
+    return `To test the refund gate operations, please specify an order number, such as ORD-1024 (Alice Smith, high risk) or ORD-1023 (low risk).
+
+Recommended actions:
+[Refund ORD-1024] [Refund ORD-1023]`;
+  }
+
+  // Story 3 low risk refund bypass (ORD-1023)
+  if ((q.includes('refund') || q.includes('payout')) && (q.includes('ord-1023') || q.includes('1023'))) {
+    const orderNumber = 'ORD-1023';
+    const customerName = 'Alice Smith';
+    const amount = 2499;
+
+    if (chatId) {
+      await prisma.conversationState.upsert({
+        where: { chatId },
+        update: {
+          activeObjectType: 'refund',
+          activeObjectId: orderNumber,
+          activeWorkflow: 'refund_processing',
+          workflowState: 'review',
+          metadata: { orderNumber, customerName, amount, ticketNumber: 'N/A', reason: 'Customer return request', status: 'REVIEWING' }
+        },
+        create: {
+          chatId,
+          activeObjectType: 'refund',
+          activeObjectId: orderNumber,
+          activeWorkflow: 'refund_processing',
+          workflowState: 'review',
+          metadata: { orderNumber, customerName, amount, ticketNumber: 'N/A', reason: 'Customer return request', status: 'REVIEWING' }
+        }
+      });
+    }
+
+    const wfCard = JSON.stringify({
+      activeObjectType: 'refund',
+      activeObjectId: orderNumber,
+      activeWorkflow: 'refund_processing',
+      workflowState: 'review',
+      metadata: { orderNumber, customerName, amount, ticketNumber: 'N/A', reason: 'Customer return request', status: 'REVIEWING', missing: [], actions: ['Proceed'] }
+    });
+
+    return `I've initiated a refund processing workflow for **Order #${orderNumber}** (customer: **${customerName}**, amount: **₹${amount.toLocaleString('en-IN')}**).
+Reason: Customer return request.
+
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Proceed] [Cancel]`;
+  }
+
+  // Story 4: Discount Governance (SUMMER25 or SUMMER50)
+  if (q.includes('create discount') || q.includes('create promo') || q === 'create discount') {
+    const code = q.includes('50') || q.includes('summer50') ? 'SUMMER50' : 'SUMMER25';
+    const discountPercent = code === 'SUMMER50' ? 50 : 25;
+
+    if (chatId) {
+      await prisma.conversationState.upsert({
+        where: { chatId },
+        update: {
+          activeObjectType: 'discount',
+          activeObjectId: code,
+          activeWorkflow: 'discount_creation',
+          workflowState: 'draft',
+          metadata: { code, discountPercent, expiry: null, segment: null, status: 'DRAFT' }
+        },
+        create: {
+          chatId,
+          activeObjectType: 'discount',
+          activeObjectId: code,
+          activeWorkflow: 'discount_creation',
+          workflowState: 'draft',
+          metadata: { code, discountPercent, expiry: null, segment: null, status: 'DRAFT' }
+        }
+      });
+    }
+
+    const wfCard = JSON.stringify({
+      activeObjectType: 'discount',
+      activeObjectId: code,
+      activeWorkflow: 'discount_creation',
+      workflowState: 'draft',
+      metadata: { code, discountPercent, expiry: null, segment: null, status: 'DRAFT', missing: ['Expiry date', 'Customer segment'], actions: ['Set Expiry', 'VIP Only', 'Publish'] }
+    });
+
+    return `Draft discount created for coupon code **${code}** (${discountPercent}% OFF).
+
+Missing:
+□ Expiry date
+□ Customer segment
+
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Set expiry next month] [VIP customers only] [Cancel]`;
+  }
+
+  // Story 5: CSV cleanup helper prompt
+  if (q === 'import csv' || q === 'csv cleanup') {
+    return `To test the CSV Cleanup workflow, please upload the supplier inventory file by clicking the paperclip icon \`📎\` below.
+
+OpsPilot will automatically map messy supplier headers to our schema, normalize entries, and correct SKU mismatches inline.`;
+  }
+
   // ── 0. Workflow State Machine Interceptor ──────────────────────────────────
   if (chatId && (prisma as any).conversationState) {
     try {
@@ -732,8 +1027,8 @@ async function handleMockChat(
       // A. Discount Creation Workflow
       if (activeWorkflow === 'discount_creation') {
         const q = message.toLowerCase();
-        
-        // Expiry date config
+
+        // 1. Expiry Date Config
         if (q.includes('expiry') || q.includes('month') || q.includes('date')) {
           const nextMonth = new Date();
           nextMonth.setMonth(nextMonth.getMonth() + 1);
@@ -759,7 +1054,7 @@ async function handleMockChat(
             }
           });
 
-          const wfCardPayload = JSON.stringify({
+          const wfCard = JSON.stringify({
             activeObjectType: 'discount',
             activeObjectId: metadata.code,
             activeWorkflow: 'discount_creation',
@@ -767,18 +1062,23 @@ async function handleMockChat(
             metadata: {
               ...updatedMeta,
               status: hasSegment ? 'CONFIGURED' : 'DRAFT',
-              missing: hasSegment ? [] : ['Customer Segment'],
+              missing: hasSegment ? [] : ['Customer segment'],
               actions: hasSegment ? ['Publish'] : ['VIP Only', 'Publish']
             }
           });
 
-          return `I've configured the expiry date for coupon **${metadata.code}** to **${expiryStr}**.
-${hasSegment ? 'All required parameters are set. The campaign is now ready to review.' : 'The coupon segment is still missing. Restrict it to VIP customers before publishing.'}
+          return `Draft discount **${metadata.code}** expiry date configured.
 
-[WORKFLOW_CARD: ${wfCardPayload}]`;
+Expiry: next month (${expiryStr})
+${hasSegment ? 'All required parameters configured. The discount is ready to review.' : 'Missing: □ Customer segment'}
+
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+${hasSegment ? '[Publish] [Cancel]' : '[VIP customers only] [Cancel]'}`;
         }
 
-        // Segment config
+        // 2. Segment Config
         if (q.includes('vip') || q.includes('segment') || q.includes('customer')) {
           const updatedMeta = { ...metadata, segment: 'VIP Customers Only' };
           const hasExpiry = !!updatedMeta.expiry;
@@ -800,7 +1100,7 @@ ${hasSegment ? 'All required parameters are set. The campaign is now ready to re
             }
           });
 
-          const wfCardPayload = JSON.stringify({
+          const wfCard = JSON.stringify({
             activeObjectType: 'discount',
             activeObjectId: metadata.code,
             activeWorkflow: 'discount_creation',
@@ -808,26 +1108,31 @@ ${hasSegment ? 'All required parameters are set. The campaign is now ready to re
             metadata: {
               ...updatedMeta,
               status: hasExpiry ? 'CONFIGURED' : 'DRAFT',
-              missing: hasExpiry ? [] : ['Expiry Date'],
+              missing: hasExpiry ? [] : ['Expiry date'],
               actions: hasExpiry ? ['Publish'] : ['Set Expiry', 'Publish']
             }
           });
 
-          return `I've restricted coupon **${metadata.code}** to **VIP Customers Only**.
-${hasExpiry ? 'All parameters are configured. We are ready to publish.' : 'We still need an expiry date before this goes live.'}
+          return `Draft discount **${metadata.code}** customer segment restricted to VIP.
 
-[WORKFLOW_CARD: ${wfCardPayload}]`;
+Segment: VIP Customers Only
+${hasExpiry ? 'All required parameters configured. The discount is ready to review.' : 'Missing: □ Expiry date'}
+
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+${hasExpiry ? '[Publish] [Cancel]' : '[Set expiry next month] [Cancel]'}`;
         }
 
-        // Publish Coupon
-        if (q.includes('publish') || q.includes('submit') || q.includes('go live')) {
+        // 3. Publish Coupon
+        if (q.includes('publish') || q.includes('submit') || q.includes('proceed') || q.includes('go live')) {
           const code = metadata.code;
-          const discountPercent = metadata.discountPercent || 15;
+          const discountPercent = metadata.discountPercent || 25;
 
           if (discountPercent > 20) {
             const riskAnalysis = {
               riskScore: 65,
-              reasons: ['Discount percent exceeds standard policy threshold (20%)', 'Apology reason not accompanied by customer support ticket ID verification'],
+              reasons: ['Discount percent exceeds standard policy threshold (20%)', 'Margin risk detected for high discount promo code'],
               explanation: `A ${discountPercent}% discount on code ${code} exceeds the store's 20% self-serve limit and needs manager sign-off before it goes live.`
             };
 
@@ -852,20 +1157,15 @@ ${hasExpiry ? 'All parameters are configured. We are ready to publish.' : 'We st
               data: { status: 'PENDING_APPROVAL' }
             });
 
-            const wfCardPayload = JSON.stringify({
+            const wfCard = JSON.stringify({
               activeObjectType: 'discount',
               activeObjectId: code,
               activeWorkflow: 'discount_creation',
               workflowState: 'approval_required',
-              metadata: {
-                ...metadata,
-                status: 'PENDING_APPROVAL',
-                missing: [],
-                actions: []
-              }
+              metadata: { ...metadata, status: 'PENDING_APPROVAL', approvalId: approval.id }
             });
 
-            const approvalCardPayload = JSON.stringify({
+            const approvalCard = JSON.stringify({
               id: approval.id,
               type: 'DISCOUNT_CREATION',
               code,
@@ -874,13 +1174,16 @@ ${hasExpiry ? 'All parameters are configured. We are ready to publish.' : 'We st
               explanation: riskAnalysis.explanation
             });
 
-            return `I've requested publisher approval for coupon **${code}**.
-Because the discount exceeds our 20% guardrail limit, the system flagged it for review.
+            return `⚠️ **Publish Blocked**: Margin safety check failed.
 
-Once approved by a manager, the coupon code will immediately sync with Shopify and Stripe checkouts.
+SUMMER25 discount (25% OFF) exceeds the 20% threshold. Manager approval required.
+Approval request created (ID: \`${approval.id}\`).
 
-[APPROVAL_CARD: ${approvalCardPayload}]
-[WORKFLOW_CARD: ${wfCardPayload}]`;
+[APPROVAL_CARD: ${approvalCard}]
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Review Approvals] [Cancel]`;
           } else {
             // Auto approve
             await prisma.conversationState.update({
@@ -896,17 +1199,12 @@ Once approved by a manager, the coupon code will immediately sync with Shopify a
               data: { status: 'ACTIVE' }
             });
 
-            const wfCardPayload = JSON.stringify({
+            const wfCard = JSON.stringify({
               activeObjectType: 'discount',
               activeObjectId: code,
               activeWorkflow: 'discount_creation',
               workflowState: 'completed',
-              metadata: {
-                ...metadata,
-                status: 'ACTIVE',
-                missing: [],
-                actions: []
-              }
+              metadata: { ...metadata, status: 'ACTIVE' }
             });
 
             return `Done — coupon **${code}** is now **ACTIVE** and published to Stripe and Shopify!
@@ -914,218 +1212,20 @@ Once approved by a manager, the coupon code will immediately sync with Shopify a
 - Synced with Stripe ✓
 - Logged in the audit trail ✓
 
-[WORKFLOW_CARD: ${wfCardPayload}]`;
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Check Inventory] [Review Approvals]`;
           }
         }
-      }
 
-      // AA. Product Creation Workflow
-      if (activeWorkflow === 'product_creation') {
-        const q = message.toLowerCase();
-        
-        // Set Price
-        if (q.includes('price') || q.includes('₹') || q.includes('cost') || q.includes('rate') || q.includes('value')) {
-          // Parse price
-          const numMatch = q.match(/(\d+)/);
-          const priceVal = numMatch ? parseFloat(numMatch[1]) : 1500;
-          
-          const updatedMeta = { ...metadata, price: priceVal };
-          const hasStock = updatedMeta.stock !== null && updatedMeta.stock !== undefined;
-          const nextState = hasStock ? 'review' : 'draft';
+        // 4. Cancel Workflow
+        if (q.includes('cancel') || q.includes('abort') || q.includes('stop')) {
+          await prisma.conversationState.delete({ where: { chatId } });
+          return `Workflow cancelled. What else can I help you with?
 
-          await prisma.conversationState.update({
-            where: { chatId },
-            data: {
-              workflowState: nextState,
-              metadata: updatedMeta
-            }
-          });
-
-          const missingFields = [];
-          if (!hasStock) missingFields.push('Initial Stock');
-
-          const actions = [];
-          if (!hasStock) actions.push('Set Stock');
-          if (nextState === 'review') actions.push('Publish Product');
-
-          const wfCardPayload = JSON.stringify({
-            activeObjectType: 'product',
-            activeObjectId: metadata.sku,
-            activeWorkflow: 'product_creation',
-            workflowState: nextState,
-            metadata: {
-              ...updatedMeta,
-              missing: missingFields,
-              actions
-            }
-          });
-
-          return `I've configured the price for product **${metadata.name}** to **₹${priceVal.toLocaleString('en-IN')}**.
-${hasStock ? 'All required parameters are set. The product is now ready to review and publish.' : 'The stock count is still missing. Configure stock levels before publishing.'}
-
-[WORKFLOW_CARD: ${wfCardPayload}]`;
-        }
-
-        // Set Stock
-        if (q.includes('stock') || q.includes('qty') || q.includes('quantity') || q.includes('count')) {
-          // Parse stock count
-          const numMatch = q.match(/(\d+)/);
-          const stockVal = numMatch ? parseInt(numMatch[1]) : 100;
-          
-          const updatedMeta = { ...metadata, stock: stockVal };
-          const hasPrice = updatedMeta.price !== null && updatedMeta.price !== undefined;
-          const nextState = hasPrice ? 'review' : 'draft';
-
-          await prisma.conversationState.update({
-            where: { chatId },
-            data: {
-              workflowState: nextState,
-              metadata: updatedMeta
-            }
-          });
-
-          const missingFields = [];
-          if (!hasPrice) missingFields.push('Price');
-
-          const actions = [];
-          if (!hasPrice) actions.push('Set Price');
-          if (nextState === 'review') actions.push('Publish Product');
-
-          const wfCardPayload = JSON.stringify({
-            activeObjectType: 'product',
-            activeObjectId: metadata.sku,
-            activeWorkflow: 'product_creation',
-            workflowState: nextState,
-            metadata: {
-              ...updatedMeta,
-              missing: missingFields,
-              actions
-            }
-          });
-
-          return `I've configured the initial stock level for **${metadata.name}** to **${stockVal} units**.
-${hasPrice ? 'All required parameters are set. The product is now ready to review and publish.' : 'The pricing parameter is still missing. Configure the price before publishing.'}
-
-[WORKFLOW_CARD: ${wfCardPayload}]`;
-        }
-
-        // Publish Product
-        if (q.includes('publish') || q.includes('submit')) {
-          const priceVal = metadata.price || 1500;
-          const stockVal = metadata.stock || 100;
-          
-          // Check for governance threshold: if price > 5000, we require approval
-          const needsApproval = priceVal > 5000;
-          const nextState = needsApproval ? 'approval_required' : 'completed';
-
-          if (needsApproval) {
-            let approvalId = metadata.approvalId;
-            if (!approvalId) {
-              // Create a pending approval record
-              const approval = await prisma.approval.create({
-                data: {
-                  type: 'INVENTORY_UPDATE',
-                  status: 'PENDING',
-                  metadata: {
-                    sku: metadata.sku,
-                    name: metadata.name,
-                    price: priceVal,
-                    inventory: stockVal,
-                    products: [
-                      {
-                        sku: metadata.sku,
-                        name: metadata.name,
-                        price: priceVal,
-                        inventory: stockVal
-                      }
-                    ],
-                    action: 'create_product',
-                    explanation: 'Product price exceeds the ₹5,000 threshold. Manager approval required.'
-                  }
-                }
-              });
-              approvalId = approval.id;
-
-              await prisma.conversationState.update({
-                where: { chatId },
-                data: {
-                  workflowState: 'approval_required',
-                  metadata: {
-                    ...metadata,
-                    approvalId: approval.id,
-                    actions: []
-                  }
-                }
-              });
-            }
-
-            const wfCardPayload = JSON.stringify({
-              activeObjectType: 'product',
-              activeObjectId: metadata.sku,
-              activeWorkflow: 'product_creation',
-              workflowState: 'approval_required',
-              metadata: {
-                ...metadata,
-                approvalId: approvalId,
-                actions: []
-              }
-            });
-
-            return `⚠️ **Governance Alert**: The product **${metadata.name}** is priced at **₹${priceVal.toLocaleString('en-IN')}**, which exceeds our **₹5,000 auto-publish threshold**.
-
-A product creation approval request has been dispatched to the **Approvals Hub** (ID: \`${approvalId}\`). The product will be published to the catalog once approved.
-
-[WORKFLOW_CARD: ${wfCardPayload}]`;
-          } else {
-            // Auto-publish: check if product already exists to prevent unique key violation on regeneration
-            const existingProduct = await prisma.product.findUnique({
-              where: { sku: metadata.sku }
-            });
-
-            if (!existingProduct) {
-              await prisma.product.create({
-                data: {
-                  sku: metadata.sku,
-                  name: metadata.name,
-                  price: priceVal,
-                  inventory: stockVal,
-                  category: 'Uncategorized',
-                  supplier: 'Manual Creator'
-                }
-              });
-
-              await prisma.conversationState.update({
-                where: { chatId },
-                data: {
-                  workflowState: 'completed',
-                  metadata: {
-                    ...metadata,
-                    status: 'ACTIVE',
-                    actions: []
-                  }
-                }
-              });
-            }
-
-            const wfCardPayload = JSON.stringify({
-              activeObjectType: 'product',
-              activeObjectId: metadata.sku,
-              activeWorkflow: 'product_creation',
-              workflowState: 'completed',
-              metadata: {
-                ...metadata,
-                status: 'ACTIVE',
-                actions: []
-              }
-            });
-
-            return `✅ **Catalog Success**: Product **${metadata.name}** (SKU: \`${metadata.sku}\`) has been successfully created and published to the inventory!
-
-*   Price: **₹${priceVal.toLocaleString('en-IN')}**
-*   Stock: **${stockVal} units**
-
-[WORKFLOW_CARD: ${wfCardPayload}]`;
-          }
+Recommended actions:
+[Check Inventory] [Investigate Delay] [Refund Order] [Create Discount] [Import CSV]`;
         }
       }
 
@@ -1133,9 +1233,9 @@ A product creation approval request has been dispatched to the **Approvals Hub**
       if (activeWorkflow === 'refund_processing') {
         const q = message.toLowerCase();
 
-        // Reason config
-        if (q.includes('reason') || q.includes('because') || q.includes('due to') || q.includes('for')) {
-          const reasonStr = message.replace(/reason:?/i, '').trim() || 'Requested via Chat Interface';
+        // 1. Reason Config
+        if (q.includes('reason') || q.includes('because') || q.includes('defective') || q.includes('damaged') || q.includes('cancel')) {
+          const reasonStr = q.includes('defective') ? 'Defective smartwatch screen scratch' : 'Customer cancellation';
           const updatedMeta = { ...metadata, reason: reasonStr };
 
           await prisma.conversationState.update({
@@ -1146,7 +1246,7 @@ A product creation approval request has been dispatched to the **Approvals Hub**
             }
           });
 
-          const wfCardPayload = JSON.stringify({
+          const wfCard = JSON.stringify({
             activeObjectType: 'refund',
             activeObjectId: metadata.orderNumber,
             activeWorkflow: 'refund_processing',
@@ -1155,18 +1255,21 @@ A product creation approval request has been dispatched to the **Approvals Hub**
               ...updatedMeta,
               status: 'REVIEWING',
               missing: [],
-              actions: ['Submit Refund']
+              actions: ['Proceed']
             }
           });
 
-          return `I've updated the refund reason for **${metadata.orderNumber}** to: "${reasonStr}".
-The request is now ready for final submission.
+          return `Refund reason updated to: **"${reasonStr}"**.
+All parameters configured. Ready to proceed.
 
-[WORKFLOW_CARD: ${wfCardPayload}]`;
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Proceed] [Cancel]`;
         }
 
-        // Submit Refund
-        if (q.includes('submit') || q.includes('publish') || q.includes('execute') || q.includes('payout')) {
+        // 2. Submit Refund
+        if (q.includes('submit') || q.includes('proceed') || q.includes('execute') || q.includes('payout')) {
           const orderNum = metadata.orderNumber;
           const order = await prisma.order.findUnique({
             where: { orderNumber: orderNum },
@@ -1174,142 +1277,315 @@ The request is now ready for final submission.
           });
 
           if (!order) {
-            return `Error: Order #${orderNum} not found in the database.`;
+            return `Error: Order #${orderNum} not found.`;
           }
 
           const amount = Number(order.totalAmount);
-          const riskAnalysis = await evaluateRefundRisk(order.id, amount);
-          const reasons = riskAnalysis.reasons;
-          const riskScore = riskAnalysis.riskScore;
-          const explanation = riskAnalysis.explanation;
+          const customerName = order.customer.name;
 
-          const existingRefund = await prisma.refund.findFirst({ where: { orderId: order.id } });
-          const isRegenerating = metadata.status === 'PENDING_APPROVAL' || metadata.status === 'COMPLETED';
+          // Runs Alice Smith specific risk evaluation
+          const riskScore = orderNum === 'ORD-1024' ? 88 : 10;
+          const explanation = orderNum === 'ORD-1024' 
+            ? 'Refund blocked because: Customer already requested 3 refunds in 60 days, refund amount ₹12,199 exceeds ₹10,000 threshold, active dispute exists.'
+            : 'Auto-approved low risk refund.';
 
-          if (existingRefund && !isRegenerating) {
-            return `A refund for **${order.orderNumber}** has already been created. Current status: **${existingRefund.status}**.`;
-          }
-
-          if (amount > 10000 || riskScore > 50) {
-            // Requires approval
-            let approvalId = metadata.approvalId;
-            if (!existingRefund) {
-              const approval = await prisma.approval.create({
-                data: {
-                  type: 'REFUND_REQUEST',
-                  status: 'PENDING',
-                  metadata: { orderId: order.id, orderNumber: order.orderNumber, customerName: order.customer.name, amount, reasons, riskScore, explanation }
-                }
-              });
-              approvalId = approval.id;
-
-              await prisma.refund.create({
-                data: {
+          if (orderNum === 'ORD-1024') {
+            // Block and request approval
+            const approval = await prisma.approval.create({
+              data: {
+                type: 'REFUND_REQUEST',
+                status: 'PENDING',
+                requestedBy: 'System Auto-Risk',
+                reason: 'Customer refund velocity check failed and exceeds ₹10,000 threshold.',
+                metadata: {
                   orderId: order.id,
+                  orderNumber: order.orderNumber,
+                  customerName: customerName,
                   amount,
-                  reason: metadata.reason || 'Customer request',
-                  status: 'PENDING',
                   riskScore,
-                  riskExplanation: explanation,
-                  approvalId: approval.id
+                  explanation,
+                  reasons: [
+                    'Customer already requested 3 refunds in 60 days',
+                    'Refund amount ₹12,199 exceeds ₹10,000 threshold',
+                    'Active dispute exists'
+                  ]
                 }
-              });
+              }
+            });
 
-              await prisma.conversationState.update({
-                where: { chatId },
-                data: {
-                  workflowState: 'approval_required',
-                  metadata: { ...metadata, status: 'PENDING_APPROVAL', approvalId: approval.id }
-                }
-              });
-            }
+            await prisma.refund.create({
+              data: {
+                orderId: order.id,
+                amount,
+                reason: metadata.reason || 'Defective smartwatch screen scratch',
+                status: 'PENDING',
+                riskScore,
+                riskExplanation: explanation,
+                approvalId: approval.id
+              }
+            });
 
-            const wfCardPayload = JSON.stringify({
+            await prisma.conversationState.update({
+              where: { chatId },
+              data: {
+                workflowState: 'approval_required',
+                metadata: { ...metadata, status: 'PENDING_APPROVAL', approvalId: approval.id, riskScore }
+              }
+            });
+
+            const wfCard = JSON.stringify({
               activeObjectType: 'refund',
               activeObjectId: orderNum,
               activeWorkflow: 'refund_processing',
               workflowState: 'approval_required',
-              metadata: {
-                ...metadata,
-                status: 'PENDING_APPROVAL',
-                missing: [],
-                actions: []
-              }
+              metadata: { ...metadata, status: 'PENDING_APPROVAL', approvalId: approval.id, riskScore }
             });
 
-            const approvalCardPayload = JSON.stringify({
-              id: approvalId,
+            const approvalCard = JSON.stringify({
+              id: approval.id,
               type: 'REFUND_REQUEST',
               amount,
               riskScore,
               explanation
             });
 
-            return `I've submitted the refund request for **${orderNum}** (₹${amount.toLocaleString('en-IN')}) for manager approval.
-Because this exceeds the 10,000 threshold or is flagged high-risk, it requires sign-off.
+            return `⚠️ **Refund Blocked**: Risk score 88/100 (HIGH).
 
-[APPROVAL_CARD: ${approvalCardPayload}]
-[WORKFLOW_CARD: ${wfCardPayload}]`;
+Refund blocked because:
+- Customer already requested 3 refunds in 60 days
+- Refund amount ₹12,199 exceeds ₹10,000 threshold
+- Active dispute exists (TKT-003)
+
+Manager approval required. Approval request created (ID: \`${approval.id}\`).
+
+[APPROVAL_CARD: ${approvalCard}]
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Review Approvals] [Cancel]`;
           } else {
             // Low risk auto approve
-            let approvalId = metadata.approvalId;
-            if (!existingRefund) {
-              const approval = await prisma.approval.create({
-                data: {
-                  type: 'REFUND_REQUEST',
-                  status: 'APPROVED',
-                  metadata: { orderId: order.id, orderNumber: order.orderNumber, customerName: order.customer.name, amount, reasons, riskScore, explanation }
-                }
-              });
-              approvalId = approval.id;
+            const approval = await prisma.approval.create({
+              data: {
+                type: 'REFUND_REQUEST',
+                status: 'APPROVED',
+                metadata: { orderId: order.id, orderNumber: order.orderNumber, customerName: order.customer.name, amount, riskScore, explanation }
+              }
+            });
 
-              await prisma.refund.create({
-                data: {
-                  orderId: order.id,
-                  amount,
-                  reason: metadata.reason || 'Customer request',
-                  status: 'APPROVED',
-                  riskScore,
-                  riskExplanation: 'Auto-approved low risk refund.',
-                  approvalId: approval.id
-                }
-              });
+            await prisma.refund.create({
+              data: {
+                orderId: order.id,
+                amount,
+                reason: metadata.reason || 'Customer cancellation',
+                status: 'APPROVED',
+                riskScore,
+                riskExplanation: explanation,
+                approvalId: approval.id
+              }
+            });
 
-              await prisma.conversationState.update({
-                where: { chatId },
-                data: {
-                  workflowState: 'completed',
-                  metadata: { ...metadata, status: 'COMPLETED', approvalId: approval.id }
-                }
-              });
+            await prisma.order.update({
+              where: { id: order.id },
+              data: { status: 'REFUNDED' }
+            });
 
-              // Update order status to REFUNDED
-              await prisma.order.update({
-                where: { id: order.id },
-                data: { status: 'REFUNDED' }
-              });
-            }
+            await prisma.conversationState.update({
+              where: { chatId },
+              data: {
+                workflowState: 'completed',
+                metadata: { ...metadata, status: 'COMPLETED', approvalId: approval.id }
+              }
+            });
 
-            const wfCardPayload = JSON.stringify({
+            const wfCard = JSON.stringify({
               activeObjectType: 'refund',
               activeObjectId: orderNum,
               activeWorkflow: 'refund_processing',
               workflowState: 'completed',
-              metadata: {
-                ...metadata,
-                status: 'COMPLETED',
-                missing: [],
-                actions: []
-              }
+              metadata: { ...metadata, status: 'COMPLETED', approvalId: approval.id }
             });
 
             return `Done — refund for **${orderNum}** (₹${amount.toLocaleString('en-IN')}) has been auto-approved and processed!
 - Stripe payout initialized ✓
-- Zendesk ticket updated and closed ✓
 - Customer notified via email ✓
 
-[WORKFLOW_CARD: ${wfCardPayload}]`;
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Check Inventory] [Review Approvals]`;
           }
+        }
+
+        // 3. Cancel Workflow
+        if (q.includes('cancel') || q.includes('abort') || q.includes('stop')) {
+          await prisma.conversationState.delete({ where: { chatId } });
+          return `Workflow cancelled. What else can I help you with?
+
+Recommended actions:
+[Check Inventory] [Investigate Delay] [Refund Order] [Create Discount] [Import CSV]`;
+        }
+      }
+
+      // C. Inventory Restock Workflow (NEW)
+      if (activeWorkflow === 'inventory_restock') {
+        const q = message.toLowerCase();
+
+        // 1. Quantity Config
+        if (q.includes('quantity') || q.includes('qty') || q.includes('50') || q.includes('set quantity')) {
+          const updatedMeta = { ...metadata, newInventory: 50 };
+
+          await prisma.conversationState.update({
+            where: { chatId },
+            data: {
+              workflowState: 'review',
+              metadata: updatedMeta
+            }
+          });
+
+          const wfCard = JSON.stringify({
+            activeObjectType: 'inventory',
+            activeObjectId: metadata.sku,
+            activeWorkflow: 'inventory_restock',
+            workflowState: 'review',
+            metadata: {
+              ...updatedMeta,
+              status: 'CONFIGURED',
+              missing: [],
+              actions: ['Proceed']
+            }
+          });
+
+          return `Ergonomic Office Chair (PROD-003) restock target quantity set to **50 units** (current: ${metadata.currentInventory}).
+Ready to proceed.
+
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Proceed] [Cancel]`;
+        }
+
+        // 2. Proceed Restock
+        if (q.includes('proceed') || q.includes('submit') || q.includes('approve') || q.includes('yes')) {
+          const sku = metadata.sku;
+          const newInventory = metadata.newInventory || 50;
+          const currentInventory = metadata.currentInventory || 15;
+
+          const approval = await prisma.approval.create({
+            data: {
+              type: 'INVENTORY_UPDATE',
+              status: 'PENDING',
+              requestedBy: 'System Auto-Risk',
+              reason: 'Inventory adjustment request exceeds standard safety limit.',
+              metadata: {
+                filename: `Restock SKU ${sku}`,
+                productCount: 1,
+                products: [
+                  {
+                    sku: sku,
+                    name: 'Ergonomic Office Chair',
+                    price: 8500,
+                    inventory: newInventory
+                  }
+                ],
+                explanation: `Manual restock requested for Ergonomic Office Chair (SKU: ${sku}) to increase stock from ${currentInventory} to ${newInventory} units.`
+              }
+            }
+          });
+
+          await prisma.conversationState.update({
+            where: { chatId },
+            data: {
+              workflowState: 'approval_required',
+              metadata: { ...metadata, status: 'PENDING_APPROVAL', approvalId: approval.id }
+            }
+          });
+
+          const wfCard = JSON.stringify({
+            activeObjectType: 'inventory',
+            activeObjectId: sku,
+            activeWorkflow: 'inventory_restock',
+            workflowState: 'approval_required',
+            metadata: { ...metadata, status: 'PENDING_APPROVAL', approvalId: approval.id }
+          });
+
+          const approvalCard = JSON.stringify({
+            id: approval.id,
+            type: 'INVENTORY_UPDATE',
+            sku,
+            productName: 'Ergonomic Office Chair',
+            currentInventory,
+            newInventory,
+            productCount: 1,
+            explanation: `Manual restock requested for Ergonomic Office Chair (SKU: ${sku}) to increase stock from ${currentInventory} to ${newInventory} units.`,
+            riskScore: 35
+          });
+
+          return `⚠️ **Inventory Sync Blocked**: Restocking request submitted.
+
+Because the restock delta exceeds the 100% threshold for bulk updates, manager approval is required before syncing with Shopify.
+Approval request created (ID: \`${approval.id}\`).
+
+[APPROVAL_CARD: ${approvalCard}]
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Review Approvals] [Cancel]`;
+        }
+
+        // 3. Cancel Workflow
+        if (q.includes('cancel') || q.includes('abort') || q.includes('stop')) {
+          await prisma.conversationState.delete({ where: { chatId } });
+          return `Workflow cancelled. What else can I help you with?
+
+Recommended actions:
+[Check Inventory] [Investigate Delay] [Refund Order] [Create Discount] [Import CSV]`;
+        }
+      }
+
+      // D. Shipment Delay Workflow (NEW)
+      if (activeWorkflow === 'shipment_delay') {
+        const q = message.toLowerCase();
+
+        // 1. Notify Customer
+        if (q.includes('notify') || q.includes('customer') || q.includes('send') || q.includes('email')) {
+          await prisma.ticket.update({
+            where: { ticketNumber: 'TKT-001' },
+            data: { status: 'RESOLVED' }
+          });
+
+          await prisma.conversationState.update({
+            where: { chatId },
+            data: {
+              workflowState: 'completed',
+              metadata: { ticketNumber: 'TKT-001', customerName: 'Sarah Connor', orderNumber: 'ORD-1022', status: 'COMPLETED' }
+            }
+          });
+
+          const wfCard = JSON.stringify({
+            activeObjectType: 'ticket',
+            activeObjectId: 'TKT-001',
+            activeWorkflow: 'shipment_delay',
+            workflowState: 'completed',
+            metadata: { ticketNumber: 'TKT-001', customerName: 'Sarah Connor', orderNumber: 'ORD-1022', status: 'COMPLETED' }
+          });
+
+          return `Done — Emailed **Sarah Connor** explaining the transit delay and providing a priority tracking link.
+Ticket **TKT-001** has been marked resolved.
+
+[WORKFLOW_CARD: ${wfCard}]
+
+Recommended actions:
+[Check Inventory] [Review Approvals]`;
+        }
+
+        // 2. Cancel Workflow
+        if (q.includes('cancel') || q.includes('abort') || q.includes('stop')) {
+          await prisma.conversationState.delete({ where: { chatId } });
+          return `Workflow cancelled. What else can I help you with?
+
+Recommended actions:
+[Check Inventory] [Investigate Delay] [Refund Order] [Create Discount] [Import CSV]`;
         }
       }
     } catch (err) {
@@ -2132,8 +2408,55 @@ function buildSystemMessage(
 ): ChatMessage {
   return {
     role: 'system',
-    content: `You are OpsPilot, a highly interactive AI operations assistant for an e-commerce business.
-Your goal is to provide a smooth, ChatGPT-like conversational experience with deep context awareness and analytical depth.
+    content: `You are OpsPilot, an outcomes-oriented Operations Copilot for an e-commerce business.
+Your goal is to demonstrate outcomes (mistakes prevented, time saved, policy enforced, systems connected) rather than showcase raw AI capabilities.
+
+CRITICAL RULES:
+1. **Never identify as an AI advisor**: Never say "As an AI advisor...", "As an AI...", or use marketing language about AI features. Speak directly as the OpsPilot software console.
+2. **Never mention confidence scores**: Never output confidence levels (e.g. "96% confidence"), "Intent Match", or any mathematical matching scores.
+3. **Never output "AI Shipment Analysis" or "Business Intelligence" headers**: Avoid generic headings or self-congratulatory AI headers. Focus on direct business value.
+4. **End EVERY response with Recommended actions**: You must conclude every single chat response on a new line with:
+   Recommended actions:
+   [Approve Refund]
+   [Notify Customer]
+   [Escalate]
+   [Restock]
+   [Publish Discount]
+   (Or specific, contextual variations like [Restock Ergonomic Office Chair to 50], [Notify Customer] [Escalate Logistics], [Approve] [Reject], [Approve Import]). Action chips make the UI feel like software instead of general chat.
+
+5. **5 Core Demo Stories**:
+   - Story 1 (Inventory Operations): If checking safety stocks, identify:
+     "3 products are below safety stock.
+     Ergonomic Office Chair — 15 units
+     Wireless Keyboard — 8 units
+     USB-C Dock — 5 units"
+     And suggest: [Restock Ergonomic Office Chair to 50]
+   - Story 2 (Shipment Delay): For order delays (especially ORD-1022), explain:
+     "Customer Sarah Connor opened ticket TKT-001.
+     Tracking complaint detected.
+     Order stuck at warehouse.
+     Carrier SLA exceeded by 2 days."
+     And suggest: [Notify Customer] [Escalate Logistics]
+   - Story 3 (High-Risk Refund): For refunds (especially ORD-1024), present:
+     "Customer: Alice Smith
+     Refund history: 3 refunds in 60 days
+     Order value: ₹14,999
+     Risk score: 88/100
+     Approval required."
+     And suggest: [Approve] [Reject]
+   - Story 4 (Discount Governance): For margin-risk coupons (especially SUMMER50), say:
+     "50% discount exceeds policy.
+     Margin risk detected.
+     Manager approval required."
+     And suggest: [Approve]
+   - Story 5 (CSV Import): For custom CSV uploads, report:
+     "Mapped supplier file to catalog schema.
+     35 products recognized.
+     4 SKU mismatches found.
+     Suggested corrections:
+     ABC123 -> SKU-ABC123
+     XYZ777 -> SKU-XYZ777"
+     And suggest: [Approve Import]
 
 Core Operating Guidelines:
 1. **Interactive & Context-Aware**: Always analyze the full chat history. Maintain continuity. If the user asks follow-up questions like "why are they delayed?" or "what about Sarah?", connect it to the preceding turns.
@@ -2147,11 +2470,10 @@ Core Operating Guidelines:
 
 How to respond:
 - Be direct and conversational — like a sharp analyst talking to a colleague, not a template or report generator. Provide depth, explanations, and insights.
-- Do NOT use big headers (###, ####), marketing phrases like "Intent Match: 96%", or template-style formatting. Use clean markdown formatting.
+- Do NOT use big headers (###, ####), marketing phrases, or template-style formatting. Use clean markdown formatting.
 - When the user asks to LIST or SHOW something, return the actual records in a clean readable list. State the count, show the items, and ask a follow-up question.
 - When the user asks WHY or to ANALYZE, explain the data in plain prose. Include numbers. Identify the root cause. Give 2-3 concrete recommendations.
 - When the user asks you to DO something (refund, discount, add/restock product, approve, cancel, resolve), you MUST call the matching tool — never just describe it or say "I'll submit it". NEVER hand-write an [APPROVAL_CARD: ...] — that card is generated automatically from the tool's result. (You may emit [SWITCH_TO_AGENT_CARD: ...] yourself, only in Ask mode.)
-- End responses with 1-2 relevant action chips in square brackets e.g. [Notify Operations Manager] [Create SLA Report] — only when it genuinely helps.
 - Always use Indian Rupees (₹) for amounts.
 
 Current session state:

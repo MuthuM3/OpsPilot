@@ -17,8 +17,22 @@ export async function GET(request: NextRequest) {
     const refundsCount = await prisma.refund.count();
 
     const skusCount = await prisma.product.count();
+    
+    // Specific counts for Operations Inbox
+    const refundsNeedingApprovalCount = await prisma.approval.count({
+      where: { status: 'PENDING', type: 'REFUND_REQUEST' }
+    });
+    const delayedShipmentsCount = await prisma.order.count({
+      where: { status: 'DELAYED' }
+    });
     const lowStockCount = await prisma.product.count({
-      where: { inventory: { lt: 10 } }
+      where: { inventory: { lt: 20 } } // Low stock safety threshold under 20 units
+    });
+    const openTicketsCount = await prisma.ticket.count({
+      where: { status: 'OPEN' }
+    });
+    const discountRequestsCount = await prisma.approval.count({
+      where: { status: 'PENDING', type: 'DISCOUNT_CREATION' }
     });
 
     // Also return list of products for overview
@@ -47,7 +61,11 @@ export async function GET(request: NextRequest) {
         totalRefundsAmount,
         skusCount,
         refundsCount,
-        lowStockCount
+        lowStockCount,
+        refundsNeedingApprovalCount,
+        delayedShipmentsCount,
+        openTicketsCount,
+        discountRequestsCount
       },
       products,
       recentOrders,

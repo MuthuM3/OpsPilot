@@ -11,13 +11,13 @@ interface Message {
   content: string;
 }
 
-function SwarmLoader() {
+function WorkflowLoader() {
   const [step, setStep] = useState(0);
   const steps = [
-    { activeId: 'coordinator', text: 'Coordinator Agent: Analyzing request intent...' },
-    { activeId: 'refund', text: 'Refund Agent: Evaluating policy & gateway rules...' },
-    { activeId: 'inventory', text: 'Inventory Agent: Syncing stock allocations...' },
-    { activeId: 'support', text: 'Support Agent: Preparing notification templates...' }
+    { activeId: 'coordinator', text: 'Coordinator: Analyzing request intent & context...' },
+    { activeId: 'refund', text: 'Policy Gate: Evaluating compliance & policy limits...' },
+    { activeId: 'inventory', text: 'Inventory Sync: Checking catalog safety thresholds...' },
+    { activeId: 'support', text: 'Notifications: Preparing confirmation templates...' }
   ];
 
   useEffect(() => {
@@ -30,10 +30,10 @@ function SwarmLoader() {
   const current = steps[step];
   
   const agents = [
-    { id: 'coordinator', label: 'Coordinator Agent' },
-    { id: 'refund', label: 'Refund Agent' },
-    { id: 'inventory', label: 'Inventory Agent' },
-    { id: 'support', label: 'Support Agent' }
+    { id: 'coordinator', label: 'Coordinator Service' },
+    { id: 'refund', label: 'Policy Gate Service' },
+    { id: 'inventory', label: 'Inventory Sync Service' },
+    { id: 'support', label: 'Notifications Service' }
   ];
 
   return (
@@ -43,15 +43,15 @@ function SwarmLoader() {
           <div className="flex items-center gap-2">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
             <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300">
-              Autonomous Swarm Orchestration
+              Operations Pipeline Execution
             </span>
           </div>
           <span className="text-[8px] bg-purple-500/10 text-purple-400 font-mono px-2 py-0.5 rounded font-bold tracking-wider">
-            Swarm active
+            Pipeline processing
           </span>
         </div>
 
-        {/* Visual Swarm Flow Chart */}
+        {/* Visual Execution Pipeline */}
         <div className="relative pl-6 space-y-3 before:absolute before:top-2 before:bottom-2 before:left-[11px] before:w-[1px] before:bg-zinc-800/80">
           {agents.map((agent) => {
             const isActive = current.activeId === agent.id;
@@ -78,7 +78,7 @@ function SwarmLoader() {
                     </span>
                     {isActive && (
                       <span className="text-[8px] font-mono uppercase tracking-wider text-purple-400 animate-pulse font-bold">
-                        Working...
+                        Processing...
                       </span>
                     )}
                   </div>
@@ -152,44 +152,61 @@ export default function ChatInterface() {
     'refund-flow': [
       {
         role: 'assistant',
-        content: `Hello! I am **OpsPilot**, your AI Operations Assistant. 
+        content: `Welcome to OpsPilot 🚀
 
-I can execute operations with safety guidelines and strict approval checkpoints:
-* Try requesting a refund: **"Refund Order #ORD-1024"** (Make sure to toggle to **Agent Mode** to test governance controls!).
-* Or ask me about **"delayed shipments"** to retrieve context from the database.
+OpsPilot helps e-commerce teams manage operations through conversation.
 
-How can I help you today?`
+Try one of these:
+📦 **Low Stock Management**
+🔍 **Shipment Investigation**
+💸 **High-Risk Refund**
+🏷 **Discount Governance**
+📁 **CSV Inventory Cleanup**`
       }
     ],
     'inventory-flow': [
       {
         role: 'assistant',
-        content: `Welcome to the **Inventory Synchronization Module**.
+        content: `Welcome to OpsPilot 🚀
 
-You can upload supplier CSV files directly in chat to normalize prices and stock:
-1. Click the paperclip icon \`📎\` below.
-2. Select your supplier CSV file.
-3. AI will map the headers and preview the database updates inline.`
+OpsPilot helps e-commerce teams manage operations through conversation.
+
+Try one of these:
+📦 **Low Stock Management**
+🔍 **Shipment Investigation**
+💸 **High-Risk Refund**
+🏷 **Discount Governance**
+📁 **CSV Inventory Cleanup**`
       }
     ],
     'discount-flow': [
       {
         role: 'assistant',
-        content: `Welcome to the **Campaign Promotions Module**.
+        content: `Welcome to OpsPilot 🚀
 
-You can create promotional codes and manage coupon rules under manager governance checks:
-* Try creating a standard discount: **"Create discount code VIP10 with 10% discount"** (Safe threshold, auto-deploys!).
-* Try requesting a high discount: **"Create discount code promo50 with 50% discount"** (Requires manager sign-off via Approvals Hub!).`
+OpsPilot helps e-commerce teams manage operations through conversation.
+
+Try one of these:
+📦 **Low Stock Management**
+🔍 **Shipment Investigation**
+💸 **High-Risk Refund**
+🏷 **Discount Governance**
+📁 **CSV Inventory Cleanup**`
       }
     ],
     'support-flow': [
       {
         role: 'assistant',
-        content: `I am running in **Ask Mode** (Read-Only). 
+        content: `Welcome to OpsPilot 🚀
 
-You can ask me questions about shipments, products, or tickets:
-* Try asking: **"Which shipments are delayed?"**
-* Or ask: **"List active inventory"** to check database records.`
+OpsPilot helps e-commerce teams manage operations through conversation.
+
+Try one of these:
+📦 **Low Stock Management**
+🔍 **Shipment Investigation**
+💸 **High-Risk Refund**
+🏷 **Discount Governance**
+📁 **CSV Inventory Cleanup**`
       }
     ]
   });
@@ -270,55 +287,24 @@ You can ask me questions about shipments, products, or tickets:
     }
   }, [chatSessions, hydrated]);
 
-  // Seed a proactive, data-driven briefing the first time a (new) conversation
-  // is opened — shows the AI is useful before the user even types.
+  // Seed a proactive, outcome-based welcome screen the first time a (new) conversation
+  // is opened.
   useEffect(() => {
     if (!hydrated || !activeChatId) return;
     if (chatSessions[activeChatId]) return;
 
-    const genericWelcome = `Hi! I'm **OpsPilot**, your AI Operations Assistant.
+    const genericWelcome = `Welcome to OpsPilot 🚀
 
-Ask me about shipments, refunds, inventory, or revenue — or switch to **Agent Mode** to execute governed actions.
+OpsPilot helps e-commerce teams manage operations through conversation.
 
-What would you like to do?`;
+Try one of these:
+📦 **Low Stock Management**
+🔍 **Shipment Investigation**
+💸 **High-Risk Refund**
+🏷 **Discount Governance**
+📁 **CSV Inventory Cleanup**`;
 
-    const seed = (content: string) =>
-      setChatSessions(prev => (prev[activeChatId] ? prev : { ...prev, [activeChatId]: [{ role: 'assistant', content }] }));
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/briefing');
-        if (!res.ok) throw new Error('briefing failed');
-        const b = await res.json();
-        const lines: string[] = [];
-        if (b.delayed > 0) lines.push(`* 🚚 **${b.delayed} shipment${b.delayed === 1 ? '' : 's'} delayed** — awaiting dispatch.`);
-        if (b.lowStock?.length > 0) {
-          const top = b.lowStock[0];
-          lines.push(`* 📦 **${b.lowStock.length} product${b.lowStock.length === 1 ? '' : 's'} low on stock** — ${top.name} (${top.sku}) down to ${top.inventory} units.`);
-        }
-        if (b.pendingApprovals > 0) lines.push(`* 🛡️ **${b.pendingApprovals} approval${b.pendingApprovals === 1 ? '' : 's'} pending**${b.highRiskApprovals > 0 ? ` (${b.highRiskApprovals} high-risk)` : ''}.`);
-        if (b.openTickets > 0) lines.push(`* 🎫 **${b.openTickets} open support ticket${b.openTickets === 1 ? '' : 's'}**.`);
-
-        if (cancelled) return;
-        if (lines.length === 0) {
-          seed(`Morning! 👋 Everything looks healthy right now — no delays, low-stock alerts, or pending approvals.\n\nWhat would you like to look into?`);
-          return;
-        }
-        seed(`Good to see you 👋 Here's what needs your attention right now:
-
-${lines.join('\n')}
-
-Want me to handle any of these?
-
-Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review pending approvals]`);
-      } catch {
-        if (!cancelled) seed(genericWelcome);
-      }
-    })();
-
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setChatSessions(prev => (prev[activeChatId] ? prev : { ...prev, [activeChatId]: [{ role: 'assistant', content: genericWelcome }] }));
   }, [activeChatId, hydrated]);
 
   // Drop message stores for conversations that have been deleted.
@@ -502,11 +488,25 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
     onSuccess: (data) => {
       // Append success parser response in chat
       const formattedPreview = `[CSV_MAPPING_CARD: ${JSON.stringify(data)}]`;
+      const filename = data.filename || '';
+      const isDemoFile = filename.toLowerCase().includes('supplier_inventory') || filename.toLowerCase().includes('supplier');
+      const contentText = isDemoFile
+        ? `Mapped supplier file to catalog schema.
+
+35 products recognized.
+
+4 SKU mismatches found.
+
+Suggested corrections:
+• ABC123 ➔ SKU-ABC123
+• XYZ777 ➔ SKU-XYZ777`
+        : `I have analyzed the CSV file and generated column mapping recommendations.`;
+
       setChatSessions(prev => ({
         ...prev,
         [activeChatId]: [
           ...(prev[activeChatId] || []),
-          { role: 'assistant', content: `I have analyzed the CSV file and generated column mapping recommendations:\n\n${formattedPreview}` }
+          { role: 'assistant', content: `${contentText}\n\n${formattedPreview}` }
         ]
       }));
 
@@ -647,37 +647,37 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
       const steps = type === 'INVENTORY_UPDATE'
         ? (isCsv
           ? [
-              'Validate CSV Schema',
-              'Check Data Consistency',
+              'Import CSV File',
+              'Validate Schema & Mappings',
               'Approval Granted',
-              'Upsert Products in Database',
-              'Sync Shopify Inventory',
+              'Correct SKU Mismatches',
+              'Execute Database Import',
               'Log Sync Transaction'
             ]
           : [
-              'Validate SKU Details',
-              'Verify Price Match',
+              'Draft inventory update created',
+              'Check Policy Gate',
               'Approval Granted',
-              'Update Stock in Database',
-              'Sync Shopify Inventory',
-              'Log Sync Transaction'
+              'Execute Update',
+              'Sync Shopify',
+              'Log Audit Transaction'
             ])
         : type === 'DISCOUNT_CREATION'
         ? [
-            'Validate Request',
-            'Check Coupon Velocity',
+            'Validate Discount Rules',
+            'Margin Risk Check',
             'Approval Granted',
-            'Deploy Coupon Rules',
-            'Notify Marketing Admin',
-            'Update Promotion Database'
+            'Published to Shopify',
+            'Sync with Stripe Checkout',
+            'Audit Recorded'
           ]
         : [
-            'Validate Order',
-            'Check Eligibility',
+            'Validate Order Details',
+            'Check Eligibility & History',
             'Approval Granted',
-            'Create Refund',
-            'Notify Customer',
-            'Update Ticket'
+            'Refund Processed',
+            'Ticket Updated',
+            'Audit Logged'
           ];
       
       setCompletedApprovals(prev => ({
@@ -847,7 +847,6 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
             <div className="flex items-center justify-between pb-2 border-b border-zinc-800/40">
               <div>
                 <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">CSV Mapping Recommendations</span>
-                <span className="text-[8px] text-purple-400 font-mono">Confidence: 96%</span>
               </div>
               <div className="flex gap-1.5 items-center">
                 <button
@@ -862,14 +861,11 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
             
             <div className="grid grid-cols-2 gap-2 text-[10px]">
               {Object.entries(cardData.mapping).slice(0, 4).map(([header, target], idx) => {
-                const confs = [98, 95, 97, 94];
-                const confidence = confs[idx % confs.length];
                 return (
                   <div key={header} className="p-2 rounded bg-zinc-900 border border-zinc-800/40 flex justify-between">
                     <span className="text-zinc-500 truncate max-w-[80px]">{header}</span>
                     <span className="text-purple-400 font-semibold">
-                      → {(target as string) || 'ignore'}{' '}
-                      <span className="text-[8px] text-zinc-500">({confidence}%)</span>
+                      → {(target as string) || 'ignore'}
                     </span>
                   </div>
                 );
@@ -878,10 +874,10 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
 
             {isWhyCsvOpen && (
               <div className="p-2.5 rounded bg-[#090e18] border border-zinc-850 space-y-1 text-[9.5px] text-zinc-400 animate-in fade-in slide-in-from-top-1 duration-200">
-                <span className="font-bold text-purple-300 block mb-0.5">AI Mapping Confidence Metrics:</span>
-                <p>• <strong>SKU ➔ Product Code</strong>: matched with 98% confidence based on field names.</p>
-                <p>• <strong>Stock ➔ Available Qty</strong>: matched with 95% confidence via value distribution.</p>
-                <p>• <strong>Price ➔ Cost</strong>: matched with 97% confidence via semantic synonym mapping.</p>
+                <span className="font-bold text-purple-300 block mb-0.5">Mapping Rules:</span>
+                <p>• <strong>SKU ➔ Product Code</strong>: matched based on field names.</p>
+                <p>• <strong>Stock ➔ Available Qty</strong>: matched via value distribution.</p>
+                <p>• <strong>Price ➔ Cost</strong>: matched via semantic synonym mapping.</p>
               </div>
             )}
 
@@ -912,7 +908,7 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
               onClick={() => handleInlineSubmitCsv(cardData, messageIdx)}
               className="w-full py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-[10px] font-bold text-white transition-all flex items-center justify-center gap-1 shadow-md shadow-purple-600/10 cursor-pointer"
             >
-              <span>Submit for Governance Approval</span>
+              <span>Approve Import</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -945,7 +941,7 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
               <div className="flex items-center justify-between pb-2 border-b border-zinc-800/40">
                 <div>
                   <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Inline Execution Pipeline</span>
-                  <span className="text-[8px] text-purple-400 font-mono">Intent: {cardData.type === 'REFUND_REQUEST' ? 'Refund Order' : cardData.type === 'DISCOUNT_CREATION' ? 'Create Promo' : 'Sync Inventory'} (94% Conf)</span>
+                  <span className="text-[8px] text-purple-400 font-mono">Intent: {cardData.type === 'REFUND_REQUEST' ? 'Refund Order' : cardData.type === 'DISCOUNT_CREATION' ? 'Create Promo' : 'Sync Inventory'}</span>
                 </div>
                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${
                   approvalState.status === 'REJECTED'
@@ -1081,11 +1077,11 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
           const isWhyOpen = !!showApprovalWhy[cardData.id];
           const blockedSteps = cardData.type === 'INVENTORY_UPDATE'
             ? (cardData.uploadId
-              ? ['Validate CSV Schema', 'Check Data Consistency', 'Waiting Approval', 'Upsert Products in Database', 'Sync Shopify Inventory', 'Log Sync Transaction']
-              : ['Validate SKU Details', 'Verify Price Match', 'Waiting Approval', 'Update Stock in Database', 'Sync Shopify Inventory', 'Log Sync Transaction'])
+              ? ['Import CSV File', 'Validate Schema & Mappings', 'Waiting Approval', 'Correct SKU Mismatches', 'Execute Database Import', 'Log Sync Transaction']
+              : ['Draft inventory update created', 'Check Policy Gate', 'Waiting Approval', 'Execute Update', 'Sync Shopify', 'Log Audit Transaction'])
             : cardData.type === 'DISCOUNT_CREATION'
-            ? ['Validate Request', 'Check Coupon Velocity', 'Waiting Approval', 'Deploy Coupon Rules', 'Notify Marketing Admin', 'Update Promotion Database']
-            : ['Validate Order', 'Check Eligibility', 'Waiting Approval', 'Create Refund', 'Notify Customer', 'Update Ticket'];
+            ? ['Validate Discount Rules', 'Margin Risk Check', 'Waiting Approval', 'Publish to Shopify', 'Sync with Stripe Checkout', 'Log Audit Transaction']
+            : ['Validate Order Details', 'Check Eligibility & History', 'Waiting Approval', 'Process Payout via Stripe', 'Update Support Ticket', 'Log Audit Transaction'];
 
           cards.push(
             <div key={`approval-${cardData.id}`} className="mt-4 p-4 rounded-xl border border-zinc-800 border-l-4 border-l-amber-500/70 bg-[#0b0f19]/95 space-y-4 backdrop-blur-sm shadow-xl shadow-purple-950/5">
@@ -1103,11 +1099,8 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5 items-center">
-                  <span className="text-[8.5px] bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded font-bold border border-purple-500/10">
-                    Intent Match: 96%
-                  </span>
                   {cardData.riskScore !== undefined && (
-                    <span className="text-[8.5px] bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded font-bold border border-rose-500/10">
+                    <span className="text-[8.5px] bg-rose-500/10 text-rose-450 px-2 py-0.5 rounded font-bold border border-rose-500/10">
                       Risk Score: {cardData.riskScore}/100
                     </span>
                   )}
@@ -1748,13 +1741,7 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
     });
   };
 
-  const currentSuggestions = ({
-    'new-chat-session': ['Add 3 new demo products', 'Refund Order #ORD-1024', 'What needs my attention today?'],
-    'refund-flow': ['Refund Order #ORD-1024', 'Create discount code SORRY25 for 25%', 'Which products are causing most refunds?'],
-    'inventory-flow': ['Add 3 new demo products', 'Restock everything below 10 units', 'Show low-stock items'],
-    'discount-flow': ['Create discount code PROMO50 with 50% discount', 'Create discount code VIP10 with 10% discount', 'Show active discount campaigns'],
-    'support-flow': ['Which shipments are delayed?', "Show Sarah's support tickets"]
-  } as Record<string, string[]>)[activeChatId] || ['Add 3 new demo products', 'Refund Order #ORD-1024', 'What needs my attention today?'];
+  const currentSuggestions = ['Check Inventory', 'Investigate Delay', 'Refund Order', 'Create Discount', 'Import CSV'];
 
   // Collapsed State Check
   if (!isChatOpen) {
@@ -1801,73 +1788,72 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
         </button>
       </div>
 
-      {/* Business Context Panel */}
-      {!isStreaming && ['refund-flow', 'inventory-flow', 'discount-flow', 'support-flow'].includes(activeChatId) && (
-        <div className="px-4 py-2 border-b border-zinc-800/50 bg-[#0c1220]/45 flex flex-wrap items-center justify-between gap-y-1.5 gap-x-3 text-[10px] shrink-0 animate-in slide-in-from-top-1">
-          {activeChatId === 'refund-flow' && (
-            <>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
-                <span className="text-zinc-400 whitespace-nowrap">Context: <strong className="text-zinc-200">Alice Smith</strong></span>
-                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px] whitespace-nowrap">VIP Tier</span>
-              </div>
-              <div className="flex items-center gap-2 text-zinc-500 whitespace-nowrap">
-                <span>Orders: <strong className="text-zinc-300">12</strong></span>
-                <span>•</span>
-                <span>Refunds: <strong className="text-zinc-300">3</strong></span>
-                <span>•</span>
-                <span>Tickets: <strong className="text-zinc-300">1</strong></span>
-              </div>
-            </>
-          )}
-          {activeChatId === 'inventory-flow' && (
-            <>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
-                <span className="text-zinc-400 whitespace-nowrap">Sync Agent: <strong className="text-zinc-200">Supplier Feeds</strong></span>
-                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px] whitespace-nowrap">Active</span>
-              </div>
-              <div className="flex items-center gap-2 text-zinc-500 whitespace-nowrap">
-                <span>SKUs: <strong className="text-zinc-300">18</strong></span>
-                <span>•</span>
-                <span>Integrations: <strong className="text-zinc-300">Shopify</strong></span>
-                <span>•</span>
-                <span>Format: <strong className="text-zinc-300">CSV</strong></span>
-              </div>
-            </>
-          )}
-          {activeChatId === 'discount-flow' && (
-            <>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
-                <span className="text-zinc-400 whitespace-nowrap">Context: <strong className="text-zinc-200">Promotions Agent</strong></span>
-                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px] whitespace-nowrap">Active</span>
-              </div>
-              <div className="flex items-center gap-2 text-zinc-500 whitespace-nowrap">
-                <span>Safe Threshold: <strong className="text-zinc-300">20%</strong></span>
-                <span>•</span>
-                <span>Active Campaigns: <strong className="text-zinc-300">3</strong></span>
-                <span>•</span>
-                <span>Integrations: <strong className="text-zinc-300">Shopify, Stripe</strong></span>
-              </div>
-            </>
-          )}
-          {activeChatId === 'support-flow' && (
-            <>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
-                <span className="text-zinc-400 whitespace-nowrap">Context: <strong className="text-zinc-200">Sarah Connor</strong></span>
-                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold uppercase text-[8px] whitespace-nowrap">VIP Tier</span>
-              </div>
-              <div className="flex items-center gap-2 text-zinc-500 whitespace-nowrap">
-                <span>Orders: <strong className="text-zinc-300">5</strong></span>
-                <span>•</span>
-                <span>Delayed: <strong className="text-zinc-300">1</strong></span>
-                <span>•</span>
-                <span>Tickets: <strong className="text-zinc-300">1</strong></span>
-              </div>
-            </>
-          )}
+      {/* Active Case Banner (Phase C) */}
+      {activeWorkflow && activeWorkflow.activeObjectType && (
+        <div className="px-4 py-3 border-b border-zinc-800 bg-[#0e1324] flex flex-col gap-2 shrink-0 animate-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400 flex items-center gap-1.5 animate-pulse">
+              <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+              ACTIVE CASE
+            </span>
+            <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+              activeWorkflow.workflowState === 'approval_required' ? 'bg-rose-500/10 text-rose-450 animate-pulse border border-rose-500/20' :
+              activeWorkflow.workflowState === 'completed' ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20' :
+              'bg-zinc-800 text-zinc-400 border border-zinc-700'
+            }`}>
+              {activeWorkflow.workflowState === 'approval_required' ? 'Approval Required' :
+               activeWorkflow.workflowState === 'completed' ? 'Completed' :
+               activeWorkflow.workflowState === 'review' ? 'Ready to Submit' : 'Drafting'}
+            </span>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10.5px] text-zinc-300">
+            {activeWorkflow.activeObjectType === 'refund' && (
+              <>
+                <div><span className="text-zinc-500">Customer:</span> <strong className="text-zinc-200">{activeWorkflow.metadata?.customerName || 'Alice Smith'}</strong></div>
+                <div><span className="text-zinc-500">Ticket:</span> <strong className="text-zinc-200">{activeWorkflow.metadata?.ticketNumber || 'TKT-003'}</strong></div>
+                <div><span className="text-zinc-500">Order:</span> <strong className="text-zinc-200">{activeWorkflow.activeObjectId || 'ORD-1024'}</strong></div>
+                <div>
+                  <span className="text-zinc-500">Risk Score:</span>{' '}
+                  <strong className={activeWorkflow.metadata?.riskScore && activeWorkflow.metadata.riskScore >= 70 ? 'text-rose-400' : 'text-zinc-200'}>
+                    {activeWorkflow.metadata?.riskScore || 88}/100
+                  </strong>
+                </div>
+              </>
+            )}
+            
+            {activeWorkflow.activeObjectType === 'discount' && (
+              <>
+                <div><span className="text-zinc-500">Code:</span> <strong className="text-zinc-200">{activeWorkflow.activeObjectId || 'SUMMER25'}</strong></div>
+                <div><span className="text-zinc-500">Segment:</span> <strong className="text-zinc-200">{activeWorkflow.metadata?.segment || 'VIP (Pending)'}</strong></div>
+                <div><span className="text-zinc-500">Expiry:</span> <strong className="text-zinc-200">{activeWorkflow.metadata?.expiry || 'Not Set'}</strong></div>
+                <div>
+                  <span className="text-zinc-500">Margin Risk:</span>{' '}
+                  <strong className="text-rose-455">
+                    {activeWorkflow.metadata?.riskScore || 65}/100
+                  </strong>
+                </div>
+              </>
+            )}
+
+            {activeWorkflow.activeObjectType === 'inventory' && (
+              <>
+                <div><span className="text-zinc-500">Product:</span> <strong className="text-zinc-200">{activeWorkflow.metadata?.name || 'Ergonomic Office Chair'}</strong></div>
+                <div><span className="text-zinc-500">SKU:</span> <strong className="text-zinc-200">{activeWorkflow.activeObjectId || 'PROD-003'}</strong></div>
+                <div><span className="text-zinc-500">Current Stock:</span> <strong className="text-zinc-200">{activeWorkflow.metadata?.currentInventory || 15}</strong></div>
+                <div><span className="text-zinc-500">Restock Target:</span> <strong className="text-emerald-450 font-bold">{activeWorkflow.metadata?.newInventory || 'Pending'}</strong></div>
+              </>
+            )}
+
+            {activeWorkflow.activeObjectType === 'ticket' && (
+              <>
+                <div><span className="text-zinc-500">Customer:</span> <strong className="text-zinc-200">{activeWorkflow.metadata?.customerName || 'Sarah Connor'}</strong></div>
+                <div><span className="text-zinc-500">Ticket:</span> <strong className="text-zinc-200">{activeWorkflow.activeObjectId || 'TKT-001'}</strong></div>
+                <div><span className="text-zinc-500">Order:</span> <strong className="text-zinc-200">{activeWorkflow.metadata?.orderNumber || 'ORD-1022'}</strong></div>
+                <div><span className="text-zinc-500">Status:</span> <strong className="text-zinc-200">{activeWorkflow.metadata?.status || 'REVIEWING'}</strong></div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -1927,7 +1913,7 @@ Suggested Actions: [List delayed shipments] or [Show low-stock items] or [Review
 
         {isStreaming &&
           messages[messages.length - 1]?.role === 'assistant' &&
-          messages[messages.length - 1]?.content === '' && <SwarmLoader />}
+          messages[messages.length - 1]?.content === '' && <WorkflowLoader />}
 
         {turnError && turnError.chatId === activeChatId && (
           <div className="flex justify-start">

@@ -323,10 +323,10 @@ export default function Sidebar() {
               ? 'bg-purple-600/10 border border-purple-500/20 text-purple-300'
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50 border border-transparent'
           } ${isCollapsed ? 'justify-center' : ''}`}
-          title={isChatOpen ? "Close AI Assistant" : "Open AI Assistant"}
+          title={isChatOpen ? "Close Operations Workspace" : "Open Operations Workspace"}
         >
           <MessageSquare className="w-4 h-4 shrink-0" />
-          {!isCollapsed && <span>AI Assistant</span>}
+          {!isCollapsed && <span>Operations Copilot</span>}
         </button>
 
         {!isCollapsed ? (

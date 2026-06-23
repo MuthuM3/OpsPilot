@@ -111,6 +111,33 @@ export async function executeApproval(approvalId: string): Promise<ApprovalResul
 
       await prisma.order.update({ where: { id: orderId }, data: { status: 'REFUNDED' } });
       await logExecutionEvent(execution.id, `✓ E-commerce order status updated to REFUNDED.`, 'SUCCESS');
+
+      // Resolve support tickets related to this order/customer
+      try {
+        const orderRecord = await prisma.order.findUnique({ where: { id: orderId } });
+        if (orderRecord) {
+          const tickets = await prisma.ticket.findMany({
+            where: {
+              customerId: orderRecord.customerId,
+              status: 'OPEN',
+              OR: [
+                { subject: { contains: orderRecord.orderNumber } },
+                { description: { contains: orderRecord.orderNumber } }
+              ]
+            }
+          });
+          for (const ticket of tickets) {
+            await prisma.ticket.update({
+              where: { id: ticket.id },
+              data: { status: 'RESOLVED' }
+            });
+            await logExecutionEvent(execution.id, `✓ Support ticket ${ticket.ticketNumber} updated to RESOLVED.`, 'SUCCESS');
+          }
+        }
+      } catch (ticketErr) {
+        console.error('Failed to resolve tickets on approval:', ticketErr);
+      }
+
       await finishExecution(execution.id, 'SUCCESS', `✓ Refund execution successfully completed. ₹${refundAmount.toLocaleString('en-IN')} returned to buyer.`);
     }
 

@@ -622,7 +622,7 @@ export default function RefundsPage() {
                           }`}>
                             <div className="flex justify-between items-center gap-4 mb-1 text-[9px] opacity-70">
                               <span className="font-bold">
-                                {isCustomer ? selectedTicket.customer.name : isSystem ? 'OpsPilot AI Swarm Auto-Draft' : 'Support Agent'}
+                                {isCustomer ? selectedTicket.customer.name : isSystem ? 'OpsPilot System Auto-Draft' : 'Support Agent'}
                               </span>
                               <span>{msg.timestamp}</span>
                             </div>
