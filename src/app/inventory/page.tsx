@@ -246,10 +246,10 @@ export default function InventoryPage() {
         </div>
         <button
           onClick={() => downloadSampleCsv()}
-          className="self-start px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-purple-300 hover:text-purple-200 text-xs font-semibold flex items-center gap-1.5 transition-all"
+          className="self-start px-3.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
         >
           <FileText className="w-4 h-4" />
-          <span>Download Sample Messy CSV</span>
+          <span>Download Sample CSV</span>
         </button>
       </div>
 
@@ -261,10 +261,10 @@ export default function InventoryPage() {
           onDragLeave={handleDrag}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`border border-dashed rounded-xl p-5 cursor-pointer transition-all duration-300 flex flex-col sm:flex-row items-center justify-between gap-4 ${
+          className={`border border-dashed rounded-xl p-6 cursor-pointer transition-all duration-200 flex flex-col sm:flex-row items-center justify-between gap-4 ${
             dragActive
-              ? 'border-purple-500 bg-purple-500/5 shadow-lg shadow-purple-500/5'
-              : 'border-zinc-800/85 bg-zinc-900/10 hover:bg-zinc-900/25 hover:border-zinc-750'
+              ? 'border-blue-500 bg-blue-500/5 shadow-sm'
+              : 'border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 hover:border-zinc-700'
           }`}
         >
           <input
@@ -275,17 +275,17 @@ export default function InventoryPage() {
             className="hidden"
           />
           <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
               <Upload className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-xs font-bold text-zinc-200">Import Supplier Inventory CSV</h3>
-              <p className="text-[11px] text-zinc-550 mt-0.5 leading-normal">
-                Drag and drop your file here, or click to browse. AI will map custom supplier headers to our schema.
+              <p className="text-[11px] text-zinc-400 mt-0.5 leading-normal">
+                Drag and drop your file here, or click to browse. System will map supplier headers to standard schema.
               </p>
             </div>
           </div>
-          <div className="px-3.5 py-1.5 rounded-xl bg-purple-650 hover:bg-purple-600 text-white text-[11px] font-semibold shrink-0 transition-colors">
+          <div className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shrink-0 transition-colors shadow-sm">
             Select File
           </div>
         </div>
@@ -293,13 +293,13 @@ export default function InventoryPage() {
         <div className="space-y-6">
           {/* Success Submission Card */}
           {isApprovedSubmitted ? (
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex gap-3.5">
                 <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 text-emerald-400">
                   <Check className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-semibold text-zinc-200">Inventory Updates Submitted for Approval!</h4>
+                  <h4 className="text-sm font-semibold text-zinc-200">Inventory Updates Submitted for Approval</h4>
                   <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
                     A governance check has blocked direct updates. The approval request `#{submittedApprovalId.substring(0, 8)}` has been created.
                   </p>
@@ -308,13 +308,13 @@ export default function InventoryPage() {
               <div className="flex gap-3">
                 <button
                   onClick={handleReset}
-                  className="px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold transition-all"
+                  className="px-3.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold transition-all"
                 >
                   Upload New File
                 </button>
                 <Link
                   href="/approvals"
-                  className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-semibold text-white transition-all flex items-center gap-1.5"
+                  className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-all flex items-center gap-1.5 shadow-sm"
                 >
                   <span>Go to Approvals Hub</span>
                   <ArrowRight className="w-4 h-4" />
@@ -322,11 +322,11 @@ export default function InventoryPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-6 glass space-y-6">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 shadow-sm space-y-6">
               {/* File Info */}
-              <div className="flex items-center justify-between pb-4 border-b border-zinc-800/80">
+              <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                     <Database className="w-4 h-4" />
                   </div>
                   <div>
@@ -346,22 +346,22 @@ export default function InventoryPage() {
               {/* Column Mapping Visualizer */}
               <div className="space-y-3">
                 <h4 className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
-                  AI Schema Mapping Recommendations
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                  Schema Mapping Recommendations
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   {Object.entries(mappingData.mapping).map(([supplierHeader, systemField]) => (
                     <div
                       key={supplierHeader}
-                      className="p-3.5 rounded-xl bg-zinc-950/30 border border-zinc-800/80 flex flex-col justify-between min-h-[80px]"
+                      className="p-3.5 rounded-lg bg-zinc-950/40 border border-zinc-800 flex flex-col justify-between min-h-[80px]"
                     >
-                      <span className="text-[10px] text-zinc-500 font-semibold truncate block" title={supplierHeader}>
+                      <span className="text-[10px] text-zinc-400 font-medium truncate block" title={supplierHeader}>
                         {supplierHeader}
                       </span>
                       <div className="mt-2 flex items-center justify-between">
                         {systemField ? (
                           <>
-                            <span className="text-[9px] text-purple-400 font-bold uppercase tracking-wider bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/10">
+                            <span className="text-[9px] text-blue-400 font-bold uppercase tracking-wider bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
                               → {systemField}
                             </span>
                             <span className="text-[9px] text-emerald-400 font-medium flex items-center gap-0.5">
@@ -383,12 +383,12 @@ export default function InventoryPage() {
               {/* Difference Preview Table */}
               <div className="space-y-3">
                 <h4 className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
                   Mapped Products Preview
                 </h4>
-                <div className="overflow-x-auto border border-zinc-800/60 rounded-xl bg-zinc-950/20">
+                <div className="overflow-x-auto border border-zinc-800 rounded-lg bg-zinc-950/30">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-zinc-900/50 border-b border-zinc-800/80 text-zinc-400 uppercase tracking-wider text-[9px] font-semibold">
+                    <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400 uppercase tracking-wider text-[9px] font-semibold">
                       <tr>
                         <th className="p-3.5">SKU</th>
                         <th className="p-3.5">Product Title</th>
@@ -396,10 +396,10 @@ export default function InventoryPage() {
                         <th className="p-3.5 text-right">Preview Stock</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-800/30 text-zinc-300">
+                    <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
                       {mappingData.preview.map((p, i) => (
-                        <tr key={i} className="hover:bg-zinc-900/20">
-                          <td className="p-3.5 font-mono text-[10px] text-purple-300">{p.sku}</td>
+                        <tr key={i} className="hover:bg-zinc-900/30">
+                          <td className="p-3.5 font-mono text-[10px] text-zinc-300">{p.sku}</td>
                           <td className="p-3.5 font-medium text-zinc-200">{p.name}</td>
                           <td className="p-3.5 text-right font-mono">₹{p.price.toLocaleString('en-IN')}</td>
                           <td className="p-3.5 text-right font-bold text-zinc-100">{p.inventory}</td>
@@ -411,11 +411,11 @@ export default function InventoryPage() {
               </div>
 
               {/* Submit for Approval Action */}
-              <div className="pt-4 border-t border-zinc-800/80 flex items-center justify-end">
+              <div className="pt-4 border-t border-zinc-800 flex items-center justify-end">
                 <button
                   onClick={() => submitApprovalMutation.mutate()}
                   disabled={submitApprovalMutation.isPending}
-                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-800 text-xs font-semibold text-white disabled:text-zinc-500 transition-all shadow-md shadow-purple-600/10 flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-xs font-semibold text-white disabled:text-zinc-500 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                 >
                   {submitApprovalMutation.isPending ? 'Registering Governance Request...' : 'Submit for Governance Approval'}
                   {!submitApprovalMutation.isPending && <ArrowRight className="w-4 h-4" />}
@@ -427,23 +427,23 @@ export default function InventoryPage() {
       )}
 
       {/* Current Inventory database list */}
-      <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-6 glass">
-        <h3 className="text-sm font-semibold text-zinc-200 pb-4 border-b border-zinc-800/80 flex items-center gap-2">
-          <Database className="w-4 h-4 text-purple-400" />
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 shadow-sm">
+        <h3 className="text-sm font-semibold text-zinc-200 pb-4 border-b border-zinc-800 flex items-center gap-2">
+          <Database className="w-4 h-4 text-blue-400" />
           <span>Active Product Database Inventory</span>
         </h3>
         
         {isProductsLoading ? (
-          <div className="py-12 flex justify-center text-zinc-500 text-xs gap-2">
-            <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping" />
+          <div className="py-12 flex justify-center items-center text-zinc-400 text-xs gap-2">
+            <span className="w-2 h-2 bg-blue-500 rounded-full" />
             <span>Loading active database...</span>
           </div>
         ) : !productsData || productsData.length === 0 ? (
           <div className="text-center py-12 text-zinc-500 text-xs">No products registered in the database.</div>
         ) : (
-          <div className="overflow-x-auto mt-4 border border-zinc-800/50 rounded-xl bg-zinc-950/20">
+          <div className="overflow-x-auto mt-4 border border-zinc-800 rounded-lg bg-zinc-950/30">
             <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-900/50 border-b border-zinc-800/80 text-zinc-400 uppercase tracking-wider text-[9px] font-semibold">
+              <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400 uppercase tracking-wider text-[9px] font-semibold">
                 <tr>
                   <th className="p-3.5">SKU</th>
                   <th className="p-3.5">Product Name</th>
@@ -453,10 +453,10 @@ export default function InventoryPage() {
                   <th className="p-3.5 text-right">In Stock</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/30 text-zinc-300">
+              <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
                 {productsData.map((p) => (
-                  <tr key={p.id} className="hover:bg-zinc-900/20">
-                    <td className="p-3.5 font-mono text-[10px] text-purple-300">{p.sku}</td>
+                  <tr key={p.id} className="hover:bg-zinc-900/30">
+                    <td className="p-3.5 font-mono text-[10px] text-zinc-300">{p.sku}</td>
                     <td className="p-3.5 font-medium text-zinc-200">{p.name}</td>
                     <td className="p-3.5 text-zinc-400">{p.category || 'N/A'}</td>
                     <td className="p-3.5 text-zinc-500">{p.supplier || 'N/A'}</td>

@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 'use client';
 
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { Sparkles, AlertTriangle, XCircle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, Info, X } from 'lucide-react';
 
 export interface ChatSession {
   id: string;
@@ -233,7 +234,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                }}
           >
             <div className="shrink-0 mt-0.5">
-              {toast.type === 'success' && <Sparkles className="w-5 h-5 text-emerald-400" />}
+              {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
               {toast.type === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-400" />}
               {toast.type === 'error' && <XCircle className="w-5 h-5 text-rose-400" />}
               {toast.type === 'info' && <Info className="w-5 h-5 text-sky-400" />}

@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
  
 import React, { useState, useEffect } from 'react';
-import { Shield, Sparkles, Activity, AlertTriangle, ChevronRight, ChevronLeft, RefreshCw, Play } from 'lucide-react';
+import { Shield, Database, Activity, AlertTriangle, ChevronRight, ChevronLeft, RefreshCw, Play } from 'lucide-react';
 import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query';
 import { useWorkspace } from '@/components/Providers';
  
@@ -150,10 +151,10 @@ export default function CopilotPanel() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="h-full w-10 border-l border-zinc-800 bg-[#090d16] flex flex-col items-center py-6 gap-6 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 cursor-pointer"
+        className="h-full w-10 border-l border-zinc-800 bg-zinc-950 flex flex-col items-center py-6 gap-6 text-zinc-400 hover:text-zinc-200 transition-colors shrink-0 cursor-pointer"
         title="Open Business Copilot Panel"
       >
-        <ChevronLeft className="w-4 h-4 text-purple-400" />
+        <ChevronLeft className="w-4 h-4 text-zinc-400" />
         <span className="vertical-rl text-[9px] font-bold uppercase tracking-widest select-none origin-center rotate-180">
           Business Copilot
         </span>
@@ -162,13 +163,13 @@ export default function CopilotPanel() {
   }
  
   return (
-    <div className="h-full w-64 border-l border-zinc-800 bg-[#0b0f19] flex flex-col shrink-0 animate-in slide-in-from-right duration-200">
+    <div className="h-full w-64 border-l border-zinc-800 bg-zinc-950 flex flex-col shrink-0 animate-in slide-in-from-right duration-200">
       {/* Panel Header */}
-      <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-950/20 h-16 shrink-0">
+      <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900 h-16 shrink-0">
         <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-purple-400 shrink-0" />
+          <Activity className="w-4 h-4 text-blue-400 shrink-0" />
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300 block">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-200 block">
               Business Copilot
             </span>
             <span className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider">
@@ -178,7 +179,7 @@ export default function CopilotPanel() {
         </div>
         <button
           onClick={() => setIsOpen(false)}
-          className="p-1 rounded hover:bg-zinc-850 text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
           title="Collapse Panel"
         >
           <ChevronRight className="w-4 h-4" />
@@ -188,23 +189,23 @@ export default function CopilotPanel() {
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {/* System Health */}
-        <div className="p-3 rounded-xl border border-zinc-800 bg-zinc-950/30 space-y-2">
+        <div className="p-3 rounded-xl border border-zinc-800 bg-zinc-900 space-y-2">
           <div className="flex justify-between items-center text-[10px]">
-            <span className="text-zinc-500">Store Health:</span>
-            <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold text-[8px] uppercase tracking-wide">
+            <span className="text-zinc-400">Store Health:</span>
+            <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-[8px] uppercase tracking-wide">
               Good
             </span>
           </div>
           <div className="flex justify-between items-center text-[10px]">
-            <span className="text-zinc-500">System Monitor:</span>
-            <span className="text-purple-400 font-bold text-[9px] animate-pulse">
-              ● MONITORING
+            <span className="text-zinc-400">System Monitor:</span>
+            <span className="text-emerald-400 font-bold text-[9px]">
+              ● ONLINE
             </span>
           </div>
         </div>
 
         {/* Active Business Workflow State */}
-        <div className="p-3 rounded-xl border border-zinc-800 bg-zinc-950/30 space-y-3">
+        <div className="p-3 rounded-xl border border-zinc-800 bg-zinc-900 space-y-3">
           <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500 block">
             Active Workflow
           </span>
@@ -217,42 +218,42 @@ export default function CopilotPanel() {
                    activeWorkflow.activeObjectType === 'inventory' ? 'Inventory Update' :
                    'Support Investigation'}
                 </span>
-                <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide ${
-                  activeWorkflow.workflowState === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
-                  activeWorkflow.workflowState === 'approval_required' ? 'bg-rose-500/10 text-rose-400 animate-pulse' :
-                  'bg-purple-500/10 text-purple-400'
+                <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide border ${
+                  activeWorkflow.workflowState === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                  activeWorkflow.workflowState === 'approval_required' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                  'bg-blue-500/10 text-blue-400 border-blue-500/20'
                 }`}>
                   {activeWorkflow.workflowState}
                 </span>
               </div>
               <div className="text-[10px] text-zinc-400 space-y-1">
-                <div>Object ID: <strong className="text-zinc-300">{activeWorkflow.activeObjectId || 'N/A'}</strong></div>
+                <div>Object ID: <strong className="text-zinc-200">{activeWorkflow.activeObjectId || 'N/A'}</strong></div>
                 {activeWorkflow.activeObjectType === 'discount' && (
                   <>
-                    <div>Value: <strong className="text-zinc-300">{activeWorkflow.metadata?.discountPercent}% Off</strong></div>
-                    <div>Expiry: <strong className="text-zinc-300">{activeWorkflow.metadata?.expiry || 'Not Set'}</strong></div>
-                    <div>Segment: <strong className="text-zinc-300">{activeWorkflow.metadata?.segment || 'All Customers'}</strong></div>
+                    <div>Value: <strong className="text-zinc-200">{activeWorkflow.metadata?.discountPercent}% Off</strong></div>
+                    <div>Expiry: <strong className="text-zinc-200">{activeWorkflow.metadata?.expiry || 'Not Set'}</strong></div>
+                    <div>Segment: <strong className="text-zinc-200">{activeWorkflow.metadata?.segment || 'All Customers'}</strong></div>
                   </>
                 )}
                 {activeWorkflow.activeObjectType === 'refund' && (
                   <>
-                    <div>Customer: <strong className="text-zinc-300">{activeWorkflow.metadata?.customerName || 'N/A'}</strong></div>
-                    <div>Amount: <strong className="text-zinc-300">₹{activeWorkflow.metadata?.amount?.toLocaleString('en-IN') || '0'}</strong></div>
-                    <div>Reason: <strong className="text-zinc-300">{activeWorkflow.metadata?.reason || 'Not Set'}</strong></div>
+                    <div>Customer: <strong className="text-zinc-200">{activeWorkflow.metadata?.customerName || 'N/A'}</strong></div>
+                    <div>Amount: <strong className="text-zinc-200">₹{activeWorkflow.metadata?.amount?.toLocaleString('en-IN') || '0'}</strong></div>
+                    <div>Reason: <strong className="text-zinc-200">{activeWorkflow.metadata?.reason || 'Not Set'}</strong></div>
                   </>
                 )}
                 {activeWorkflow.activeObjectType === 'inventory' && (
                   <>
-                    <div>Product: <strong className="text-zinc-300">{activeWorkflow.metadata?.productName || 'N/A'}</strong></div>
-                    <div>Target Stock: <strong className="text-zinc-300">{activeWorkflow.metadata?.requestedStock || '50'} units</strong></div>
-                    <div>Previous Stock: <strong className="text-zinc-300">{activeWorkflow.metadata?.currentStock || '15'} units</strong></div>
+                    <div>Product: <strong className="text-zinc-200">{activeWorkflow.metadata?.productName || 'N/A'}</strong></div>
+                    <div>Target Stock: <strong className="text-zinc-200">{activeWorkflow.metadata?.requestedStock || '50'} units</strong></div>
+                    <div>Previous Stock: <strong className="text-zinc-200">{activeWorkflow.metadata?.currentStock || '15'} units</strong></div>
                   </>
                 )}
                 {activeWorkflow.activeObjectType === 'ticket' && (
                   <>
-                    <div>Customer: <strong className="text-zinc-300">{activeWorkflow.metadata?.customerName || 'N/A'}</strong></div>
-                    <div>Order: <strong className="text-zinc-300">{activeWorkflow.metadata?.orderNumber || 'N/A'}</strong></div>
-                    <div>SLA Status: <strong className="text-rose-450 font-bold">SLA Exceeded</strong></div>
+                    <div>Customer: <strong className="text-zinc-200">{activeWorkflow.metadata?.customerName || 'N/A'}</strong></div>
+                    <div>Order: <strong className="text-zinc-200">{activeWorkflow.metadata?.orderNumber || 'N/A'}</strong></div>
+                    <div>SLA Status: <strong className="text-rose-400 font-bold">SLA Exceeded</strong></div>
                   </>
                 )}
               </div>
@@ -273,15 +274,15 @@ export default function CopilotPanel() {
             {scenarios.map((sc) => (
               <div 
                 key={sc.id} 
-                className="p-3 rounded-xl border border-zinc-800/80 bg-zinc-950/20 hover:bg-zinc-950/40 transition-all text-[10px] space-y-1.5 group relative animate-in fade-in duration-200"
+                className="p-3 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-850/80 transition-all text-[10px] space-y-1.5 group relative animate-in fade-in duration-200"
               >
                 <div className="flex justify-between items-start gap-1">
-                  <span className="font-semibold text-zinc-200 block text-[10px] group-hover:text-purple-300 transition-colors">
+                  <span className="font-semibold text-zinc-200 block text-[10px] group-hover:text-blue-400 transition-colors">
                     {sc.title}
                   </span>
                   <button
                     onClick={() => playScenario(sc)}
-                    className="p-1 rounded bg-purple-600/10 hover:bg-purple-600/30 text-purple-400 group-hover:text-purple-300 transition-all cursor-pointer flex items-center justify-center shrink-0 border border-purple-500/10 hover:border-purple-500/30"
+                    className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 group-hover:text-white transition-all cursor-pointer flex items-center justify-center shrink-0 border border-zinc-700"
                     title={`Trigger ${sc.title}`}
                   >
                     <Play className="w-2.5 h-2.5 fill-current" />
@@ -291,7 +292,7 @@ export default function CopilotPanel() {
                   {sc.desc}
                 </p>
                 <div className="flex justify-between items-center text-[8px] text-zinc-500 font-mono">
-                  <span>Mode: <strong className={sc.mode === 'agent' ? 'text-purple-400' : 'text-sky-400'}>{sc.mode.toUpperCase()}</strong></span>
+                  <span>Mode: <strong className="text-blue-400">{sc.mode.toUpperCase()}</strong></span>
                   <span>Tab: <strong className="text-zinc-400">{sc.tab}</strong></span>
                 </div>
               </div>
@@ -305,7 +306,7 @@ export default function CopilotPanel() {
             Business Context
           </span>
  
-          <div className="p-3.5 rounded-xl bg-zinc-950/20 border border-zinc-800/50 space-y-2 text-[10px] text-zinc-300">
+          <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2 text-[10px] text-zinc-300">
             <div className="flex justify-between items-center">
               <span className="text-zinc-500">Orders Today</span>
               <span className="font-bold text-zinc-200">{ordersToday}</span>
@@ -316,13 +317,13 @@ export default function CopilotPanel() {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-zinc-500">Pending Approvals</span>
-              <span className="font-bold text-purple-400">{pendingApprovalsToday}</span>
+              <span className="font-bold text-amber-400">{pendingApprovalsToday}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-zinc-500">Low Stock Products</span>
               <span className="font-bold text-amber-400">{lowStockToday}</span>
             </div>
-            <div className="border-t border-zinc-800/40 my-1 pt-2 flex justify-between items-center text-[11px]">
+            <div className="border-t border-zinc-800 my-1 pt-2 flex justify-between items-center text-[11px]">
               <span className="text-zinc-400 font-medium">Revenue Today</span>
               <span className="font-bold text-emerald-400">₹{Math.floor(revenueToday).toLocaleString('en-IN')}</span>
             </div>
@@ -353,10 +354,10 @@ export default function CopilotPanel() {
         </div>
  
         {/* Governance Insight */}
-        <div className="p-3 rounded-xl border border-purple-500/10 bg-purple-500/5 space-y-2 text-[10px]">
+        <div className="p-3 rounded-xl border border-zinc-800 bg-zinc-900 space-y-2 text-[10px]">
           <div className="flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-            <span className="font-bold text-purple-300">Policy Rules</span>
+            <Shield className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span className="font-bold text-zinc-200">Policy Rules</span>
           </div>
           <ul className="space-y-1 text-[9px] text-zinc-400 list-disc pl-3 leading-relaxed">
             <li>Single refund ceiling threshold: ₹10,000</li>
@@ -367,18 +368,18 @@ export default function CopilotPanel() {
       </div>
  
       {/* Seeding Controls */}
-      <div className="p-4 border-t border-zinc-800 bg-zinc-950/20 shrink-0">
+      <div className="p-4 border-t border-zinc-800 bg-zinc-900 shrink-0">
         <button
           onClick={() => generateMutation.mutate()}
           disabled={generateMutation.isPending}
-          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-sky-500 hover:from-purple-500 hover:to-sky-400 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 shadow-md shadow-purple-600/10 cursor-pointer disabled:opacity-50"
+          className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
         >
           {generateMutation.isPending ? (
             <RefreshCw className="w-4 h-4 animate-spin" />
           ) : (
-            <Sparkles className="w-4 h-4" />
+            <Database className="w-4 h-4" />
           )}
-          <span>⚡ Generate Store Data</span>
+          <span>Generate Store Data</span>
         </button>
       </div>
     </div>

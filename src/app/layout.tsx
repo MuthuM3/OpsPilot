@@ -19,15 +19,12 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased dark" suppressHydrationWarning>
       <body className="h-full bg-background text-foreground overflow-hidden">
         <Providers>
-          <div className="flex h-full w-full overflow-hidden">
+          <div className="flex h-full w-full overflow-hidden relative">
             {/* Sidebar Left (Nav & History) */}
             <Sidebar />
 
-            {/* AI Assistant Chat Panel Middle */}
-            <ChatInterface />
-
-            {/* Main Workspace Area Right */}
-            <main className="flex-1 h-full overflow-hidden bg-[#090d16] flex flex-col relative">
+            {/* Main Workspace Area (Full Width) */}
+            <main className="flex-1 h-full overflow-hidden bg-background flex flex-col relative">
               {/* Interactive Workflow HUD Banner */}
               <WorkflowHUD />
 
@@ -35,6 +32,9 @@ export default function RootLayout({
                 {children}
               </div>
             </main>
+
+            {/* Floating Chat Popup & Launcher in Bottom-Right */}
+            <ChatInterface />
           </div>
         </Providers>
       </body>

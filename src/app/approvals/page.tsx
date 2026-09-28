@@ -233,12 +233,12 @@ export default function ApprovalsPage() {
 
         {isLoading ? (
           <div className="py-12 text-center text-zinc-500 text-xs flex justify-center items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
             <span>Loading queue...</span>
           </div>
         ) : pendingApprovals.length === 0 ? (
-          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/10 p-12 text-center text-zinc-500 max-w-xl flex flex-col items-center justify-center">
-            <ShieldCheck className="w-10 h-10 text-emerald-500/20 mb-2" />
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-12 text-center text-zinc-500 max-w-xl mx-auto flex flex-col items-center justify-center">
+            <ShieldCheck className="w-10 h-10 text-emerald-500/30 mb-2" />
             <h4 className="text-xs font-bold text-zinc-300">Queue is Clear</h4>
             <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
               All transactions have cleared governance bounds. No operational tasks require manual manager oversight.
@@ -255,23 +255,23 @@ export default function ApprovalsPage() {
                 return (
                   <div
                     key={a.id}
-                    className={`rounded-2xl border bg-[#0f1422]/60 p-6 glass flex flex-col space-y-6 transition-all duration-500 ${
+                    className={`rounded-xl border bg-zinc-900 p-6 shadow-sm flex flex-col space-y-6 transition-all duration-300 ${
                       executionState.status === 'SUCCESS'
-                        ? 'border-emerald-550/40 bg-emerald-950/10 shadow-[0_10px_30px_-10px_rgba(16,185,129,0.15)] animate-pulse'
+                        ? 'border-emerald-500/40 bg-zinc-900'
                         : executionState.status === 'FAILED'
-                        ? 'border-rose-550/40 bg-rose-950/10 shadow-[0_10px_30px_-10px_rgba(244,63,94,0.15)]'
-                        : 'border-purple-500/30 shadow-[0_10px_30px_-10px_rgba(168,85,247,0.05)]'
+                        ? 'border-rose-500/40 bg-zinc-900'
+                        : 'border-blue-500/40 bg-zinc-900'
                     }`}
                   >
                     {/* Running Header Banner */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800/80">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-colors duration-300 ${
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border transition-colors duration-200 ${
                           executionState.status === 'SUCCESS'
-                            ? 'bg-emerald-500/10 border-emerald-550/30 text-emerald-450'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                             : executionState.status === 'FAILED'
-                            ? 'bg-rose-500/10 border-rose-550/30 text-rose-450'
-                            : 'bg-purple-500/10 border-purple-500/30 text-purple-400 animate-pulse'
+                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                            : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
                         }`}>
                           {executionState.status === 'SUCCESS' ? (
                             <Check className="w-5 h-5" />
@@ -296,10 +296,10 @@ export default function ApprovalsPage() {
                       </div>
                       <span className={`text-[9px] px-2.5 py-0.5 border rounded font-bold uppercase tracking-wide transition-all ${
                         executionState.status === 'SUCCESS'
-                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                           : executionState.status === 'FAILED'
-                          ? 'bg-rose-500/15 border-rose-500/30 text-rose-455'
-                          : 'bg-purple-500/15 border-purple-500/30 text-purple-400 animate-pulse'
+                          ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                          : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
                       }`}>
                         {executionState.status === 'SUCCESS'
                           ? 'Success'
@@ -319,26 +319,26 @@ export default function ApprovalsPage() {
                         return (
                           <div
                             key={idx}
-                            className={`text-xs flex items-center justify-between transition-all duration-300 ${
-                              isPending ? 'text-zinc-600 opacity-40' : isRunning ? 'text-purple-400 font-semibold' : 'text-zinc-200'
+                            className={`text-xs flex items-center justify-between transition-all duration-200 ${
+                              isPending ? 'text-zinc-600 opacity-40' : isRunning ? 'text-blue-400 font-semibold' : 'text-zinc-200'
                             }`}
                           >
                             <div className="flex items-center gap-3">
                               {isPending ? (
                                 <div className="h-4 w-4 rounded border border-zinc-800 shrink-0 flex items-center justify-center text-[8px] text-zinc-600">□</div>
                               ) : isRunning ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-purple-450 shrink-0" />
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-400 shrink-0" />
                               ) : isCompleted ? (
-                                <div className="w-4 h-4 rounded-full bg-emerald-550/15 border border-emerald-550/30 flex items-center justify-center shrink-0">
-                                  <Check className="w-2.5 h-2.5 text-emerald-450" />
+                                <div className="w-4 h-4 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                                  <Check className="w-2.5 h-2.5 text-emerald-400" />
                                 </div>
                               ) : (
                                 // Execution failed on or before this step
-                                <div className="w-4 h-4 rounded-full bg-rose-550/15 border border-rose-550/30 flex items-center justify-center shrink-0">
-                                  <X className="w-2.5 h-2.5 text-rose-455" />
+                                <div className="w-4 h-4 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                                  <X className="w-2.5 h-2.5 text-rose-400" />
                                 </div>
                               )}
-                              <span className={isRunning ? 'animate-pulse' : ''}>{step}</span>
+                              <span>{step}</span>
                             </div>
                           </div>
                         );
@@ -351,7 +351,7 @@ export default function ApprovalsPage() {
                         <div className="flex items-start gap-2">
                           <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
                           <div className="text-[11px] text-zinc-300">
-                            <span className="font-bold text-rose-405 block mb-0.5">Execution Error:</span>
+                            <span className="font-bold text-rose-400 block mb-0.5">Execution Error:</span>
                             <p className="italic text-zinc-400">"{executionState.error}"</p>
                           </div>
                         </div>
@@ -365,13 +365,13 @@ export default function ApprovalsPage() {
                                 return next;
                               });
                             }}
-                            className="px-3.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10.5px] font-bold text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                            className="px-3.5 py-1.5 rounded-lg bg-zinc-850 border border-zinc-750 text-[10.5px] font-semibold text-zinc-300 hover:text-white transition-colors cursor-pointer"
                           >
                             Dismiss
                           </button>
                           <button
                             onClick={() => handleApprove(a)}
-                            className="px-3.5 py-1.5 rounded-lg bg-purple-650 hover:bg-purple-600 text-[10.5px] font-bold text-white transition-colors cursor-pointer flex items-center gap-1"
+                            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[10.5px] font-semibold text-white transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
                           >
                             <span>Retry Execution</span>
                             <ArrowRight className="w-3.5 h-3.5" />
@@ -391,20 +391,20 @@ export default function ApprovalsPage() {
               return (
                 <div
                   key={a.id}
-                  className={`rounded-2xl border bg-[#0f1422]/60 p-6 glass flex flex-col space-y-6 transition-all duration-300 ${
-                    isCurrentCardMutating ? 'opacity-70 border-purple-500/25 pointer-events-none' : 'border-zinc-800/80'
+                  className={`rounded-xl border bg-zinc-900 p-6 shadow-sm flex flex-col space-y-6 transition-all duration-200 ${
+                    isCurrentCardMutating ? 'opacity-70 border-blue-500/30 pointer-events-none' : 'border-zinc-800'
                   }`}
                 >
                   {/* Approval Title Banner */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800/80">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0 text-purple-400 animate-pulse">
+                      <div className="w-10 h-10 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0 text-zinc-300">
                         {a.type === 'INVENTORY_UPDATE' ? (
-                          <Database className="w-5 h-5" />
+                          <Database className="w-5 h-5 text-blue-400" />
                         ) : a.type === 'DISCOUNT_CREATION' ? (
-                          <Tag className="w-5 h-5" />
+                          <Tag className="w-5 h-5 text-amber-400" />
                         ) : (
-                          <ShoppingBag className="w-5 h-5" />
+                          <ShoppingBag className="w-5 h-5 text-sky-400" />
                         )}
                       </div>
                       <div>
@@ -420,7 +420,7 @@ export default function ApprovalsPage() {
                         </p>
                       </div>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold uppercase rounded tracking-wide self-start sm:self-center animate-pulse">
+                    <span className="text-[10px] px-2.5 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-semibold uppercase rounded tracking-wide self-start sm:self-center">
                       Pending Manager Review
                     </span>
                   </div>
@@ -465,10 +465,10 @@ export default function ApprovalsPage() {
                       <div className="rounded-xl border border-zinc-800 bg-zinc-950/20 p-5 flex flex-col justify-between">
                         <div className="space-y-3">
                           <h5 className="text-xs font-bold text-zinc-300 flex items-center gap-1.5 uppercase tracking-wider">
-                            <ShieldCheck className="w-4 h-4 text-purple-400" />
-                            <span>AI Operations Assessment</span>
+                            <ShieldCheck className="w-4 h-4 text-blue-400" />
+                            <span>Operations Assessment</span>
                           </h5>
-                          <p className="text-[11px] text-zinc-400 leading-relaxed italic bg-zinc-900/20 p-3 rounded-lg border border-zinc-800/40">
+                          <p className="text-[11px] text-zinc-400 leading-relaxed italic bg-zinc-900/40 p-3 rounded-lg border border-zinc-800">
                             "{meta.explanation || 'Manual Review Required'}"
                           </p>
                         </div>
@@ -494,7 +494,7 @@ export default function ApprovalsPage() {
                           </div>
                           <div>
                             <span className="text-zinc-500">Discount Percentage:</span>
-                            <span className="text-rose-455 font-bold block mt-0.5">
+                            <span className="text-rose-400 font-bold block mt-0.5">
                               {meta.discountPercent}% OFF
                             </span>
                           </div>
@@ -518,10 +518,10 @@ export default function ApprovalsPage() {
                       <div className="rounded-xl border border-zinc-800 bg-zinc-950/20 p-5 flex flex-col justify-between">
                         <div className="space-y-3">
                           <h5 className="text-xs font-bold text-zinc-300 flex items-center gap-1.5 uppercase tracking-wider">
-                            <ShieldCheck className="w-4 h-4 text-purple-400" />
-                            <span>AI Operations Assessment</span>
+                            <ShieldCheck className="w-4 h-4 text-blue-400" />
+                            <span>Operations Assessment</span>
                           </h5>
-                          <p className="text-[11px] text-zinc-400 leading-relaxed italic bg-zinc-900/20 p-3 rounded-lg border border-zinc-800/40">
+                          <p className="text-[11px] text-zinc-400 leading-relaxed italic bg-zinc-900/40 p-3 rounded-lg border border-zinc-800">
                             "{meta.explanation || 'Campaign promotion coupon created, requires validation check.'}"
                           </p>
                         </div>
@@ -535,7 +535,7 @@ export default function ApprovalsPage() {
                     <div className="space-y-4">
                       <div className="rounded-xl border border-zinc-800 bg-zinc-950/20 p-5 space-y-4">
                         <h5 className="text-xs font-bold text-zinc-300 flex items-center gap-1.5 uppercase tracking-wider">
-                          <Database className="w-4 h-4 text-purple-400" />
+                          <Database className="w-4 h-4 text-blue-400" />
                           <span>Mapped Inventory Changes List ({meta.productCount} SKUs)</span>
                         </h5>
                         
@@ -552,10 +552,10 @@ export default function ApprovalsPage() {
                             <tbody className="divide-y divide-zinc-800/30 text-zinc-300">
                               {meta.products?.slice(0, 10).map((p: any, idx: number) => (
                                 <tr key={idx}>
-                                  <td className="p-3 font-mono text-[10px] text-purple-300">{p.sku}</td>
+                                  <td className="p-3 font-mono text-[10px] text-zinc-300">{p.sku}</td>
                                   <td className="p-3 text-zinc-200">{p.name}</td>
                                   <td className="p-3 text-right font-mono text-zinc-400">₹{p.price?.toLocaleString('en-IN')}</td>
-                                  <td className="p-3 text-right font-bold text-emerald-450">{p.inventory} units</td>
+                                  <td className="p-3 text-right font-bold text-emerald-400">{p.inventory} units</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -571,7 +571,7 @@ export default function ApprovalsPage() {
                   )}
 
                   {/* Approve / Reject Controls */}
-                  <div className="pt-4 border-t border-zinc-800/80 flex items-center justify-between gap-4">
+                  <div className="pt-4 border-t border-zinc-800 flex items-center justify-between gap-4">
                     <div className="text-[10px] text-zinc-500">
                       Approval ID: <span className="font-mono text-zinc-400">#{a.id}</span>
                     </div>
@@ -579,7 +579,7 @@ export default function ApprovalsPage() {
                       <button
                         onClick={() => handleOpenReject(a.id)}
                         disabled={isAnyCardMutating}
-                        className="px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-rose-900/30 hover:text-rose-450 text-xs font-semibold text-zinc-400 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                        className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-rose-900/30 hover:text-rose-400 text-xs font-semibold text-zinc-400 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                       >
                         {isThisRejecting ? (
                           <>
@@ -596,7 +596,7 @@ export default function ApprovalsPage() {
                       <button
                         onClick={() => handleApprove(a)}
                         disabled={isAnyCardMutating}
-                        className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-semibold text-white transition-all shadow-md shadow-purple-650/10 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                        className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                       >
                         {isThisApproving ? (
                           <>
@@ -626,11 +626,11 @@ export default function ApprovalsPage() {
         </h3>
         
         {pastApprovals.length === 0 ? (
-          <div className="text-zinc-650 text-xs italic">No historical approvals.</div>
+          <div className="text-zinc-600 text-xs italic">No historical approvals.</div>
         ) : (
-          <div className="overflow-x-auto border border-zinc-800/50 rounded-xl bg-zinc-900/10 glass">
+          <div className="overflow-x-auto border border-zinc-800 rounded-xl bg-zinc-900 shadow-sm">
             <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-900/50 border-b border-zinc-800/80 text-zinc-500 uppercase tracking-wider text-[9px] font-semibold">
+              <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400 uppercase tracking-wider text-[9px] font-semibold">
                 <tr>
                   <th className="p-3.5">Approval ID</th>
                   <th className="p-3.5">Type</th>
@@ -640,9 +640,9 @@ export default function ApprovalsPage() {
                   <th className="p-3.5 text-right">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/30 text-zinc-300">
+              <tbody className="divide-y divide-zinc-800 text-zinc-300">
                 {pastApprovals.map((a) => (
-                  <tr key={a.id} className="hover:bg-zinc-900/10">
+                  <tr key={a.id} className="hover:bg-zinc-850/50">
                     <td className="p-3.5 font-mono text-[9px] text-zinc-500">#{a.id.substring(0, 8)}</td>
                     <td className="p-3.5 text-zinc-200 font-medium">
                       {a.type === 'INVENTORY_UPDATE' 
@@ -662,8 +662,8 @@ export default function ApprovalsPage() {
                       <span
                         className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
                           a.status === 'APPROVED'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
-                            : 'bg-rose-500/10 text-rose-455 border border-rose-500/10'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                         }`}
                       >
                         {a.status === 'APPROVED' ? 'APPROVED' : 'REJECTED'}
@@ -679,49 +679,49 @@ export default function ApprovalsPage() {
 
       {/* Reject Modal */}
       {rejectingApprovalId && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-[#0b0f19]/90 p-6 shadow-2xl glass flex flex-col space-y-5 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl flex flex-col space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
               <h3 className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
-                <AlertTriangle className="w-4.5 h-4.5 text-rose-450" />
+                <AlertTriangle className="w-4.5 h-4.5 text-rose-400" />
                 <span>Reject Governance Request</span>
               </h3>
               <button 
                 onClick={() => setRejectingApprovalId(null)}
-                className="p-1 rounded hover:bg-zinc-900 text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer"
+                className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             
             <div className="space-y-3">
-              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Rejection Presets</span>
+              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Rejection Presets</span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setRejectionReason('Policy threshold mismatch: Amount exceeds manager daily limits.')}
-                  className="p-2 text-left rounded-lg bg-zinc-900/60 border border-zinc-800 hover:border-purple-500/40 text-[10px] text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer truncate"
+                  className="p-2 text-left rounded-lg bg-zinc-850 border border-zinc-750 hover:border-zinc-650 hover:bg-zinc-800 text-[10px] text-zinc-300 hover:text-white transition-all cursor-pointer truncate"
                 >
                   Limit Threshold Breached
                 </button>
                 <button
                   type="button"
                   onClick={() => setRejectionReason('Suspicious activity: Customer refund velocity is abnormally high.')}
-                  className="p-2 text-left rounded-lg bg-zinc-900/60 border border-zinc-800 hover:border-purple-500/40 text-[10px] text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer truncate"
+                  className="p-2 text-left rounded-lg bg-zinc-850 border border-zinc-750 hover:border-zinc-650 hover:bg-zinc-800 text-[10px] text-zinc-300 hover:text-white transition-all cursor-pointer truncate"
                 >
                   High Refund Velocity Alert
                 </button>
                 <button
                   type="button"
                   onClick={() => setRejectionReason('Supplier CSV format/header validation check failed.')}
-                  className="p-2 text-left rounded-lg bg-zinc-900/60 border border-zinc-800 hover:border-purple-500/40 text-[10px] text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer truncate"
+                  className="p-2 text-left rounded-lg bg-zinc-850 border border-zinc-750 hover:border-zinc-650 hover:bg-zinc-800 text-[10px] text-zinc-300 hover:text-white transition-all cursor-pointer truncate"
                 >
                   CSV Format Validation Failed
                 </button>
                 <button
                   type="button"
                   onClick={() => setRejectionReason('Operational cancel: Action rejected by request of finance lead.')}
-                  className="p-2 text-left rounded-lg bg-zinc-900/60 border border-zinc-800 hover:border-purple-500/40 text-[10px] text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer truncate"
+                  className="p-2 text-left rounded-lg bg-zinc-850 border border-zinc-750 hover:border-zinc-650 hover:bg-zinc-800 text-[10px] text-zinc-300 hover:text-white transition-all cursor-pointer truncate"
                 >
                   Finance Lead Override
                 </button>
@@ -729,12 +729,12 @@ export default function ApprovalsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Detailed Explanation</label>
+              <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Detailed Explanation</label>
               <textarea
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
                 placeholder="Specify the reason for governance audit trail..."
-                className="w-full h-24 px-3 py-2 bg-zinc-955 border border-zinc-800 rounded-lg text-xs text-zinc-250 placeholder-zinc-650 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all"
+                className="w-full h-24 px-3 py-2 bg-zinc-950 border border-zinc-750 rounded-lg text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all"
               />
             </div>
             
@@ -742,14 +742,14 @@ export default function ApprovalsPage() {
               <button
                 onClick={() => setRejectingApprovalId(null)}
                 disabled={rejectMutation.isPending}
-                className="px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold cursor-pointer transition-colors"
+                className="px-4 py-2 rounded-lg bg-zinc-850 border border-zinc-750 text-zinc-300 hover:text-white text-xs font-semibold cursor-pointer transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleReject}
                 disabled={rejectMutation.isPending}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white transition-all shadow-md shadow-rose-600/10 flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 {rejectMutation.isPending ? (
                   <>

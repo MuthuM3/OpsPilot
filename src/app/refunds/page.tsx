@@ -19,7 +19,6 @@ import {
   ChevronRight,
   ShieldAlert,
   Send,
-  Sparkles,
   TrendingUp,
   CreditCard,
   History,
@@ -352,22 +351,21 @@ export default function RefundsPage() {
   const getCustomerStats = (customerName: string) => {
     switch (customerName) {
       case 'Alice Smith':
-        return { ltv: 19697, refundRatio: 25, tier: 'VIP', color: 'from-purple-550 to-indigo-650' };
+        return { ltv: 19697, refundRatio: 25, tier: 'VIP', badgeClass: 'bg-blue-600/10 text-blue-400 border border-blue-500/20' };
       case 'Bob Johnson':
-        return { ltv: 18699, refundRatio: 0, tier: 'Gold', color: 'from-amber-500 to-orange-650' };
+        return { ltv: 18699, refundRatio: 0, tier: 'Gold', badgeClass: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' };
       case 'Sarah Connor':
-        return { ltv: 8500, refundRatio: 0, tier: 'VIP', color: 'from-purple-550 to-indigo-650' };
+        return { ltv: 8500, refundRatio: 0, tier: 'VIP', badgeClass: 'bg-blue-600/10 text-blue-400 border border-blue-500/20' };
       default:
-        return { ltv: 4999, refundRatio: 0, tier: 'Standard', color: 'from-sky-500 to-blue-650' };
+        return { ltv: 4999, refundRatio: 0, tier: 'Standard', badgeClass: 'bg-zinc-800 text-zinc-300 border border-zinc-700' };
     }
   };
 
   // Avatar initials generator
   const renderInitialsAvatar = (name: string) => {
     const initials = name.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase();
-    const stats = getCustomerStats(name);
     return (
-      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${stats.color} flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-md`}>
+      <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700/80 flex items-center justify-center font-bold text-xs text-zinc-200 shrink-0">
         {initials}
       </div>
     );
@@ -426,7 +424,7 @@ export default function RefundsPage() {
           {successInfo.status === 'PENDING' && (
             <Link
               href="/approvals"
-              className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-semibold text-white transition-all flex items-center gap-1.5 self-start sm:self-center cursor-pointer"
+              className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-all flex items-center gap-1.5 self-start sm:self-center cursor-pointer shadow-sm"
             >
               <span>Review in Approvals Queue</span>
               <ArrowRight className="w-4 h-4" />
@@ -439,11 +437,11 @@ export default function RefundsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[620px] items-stretch">
         
         {/* Left Column: Tickets Inbox */}
-        <div className="lg:col-span-4 rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-4 glass flex flex-col space-y-4">
+        <div className="lg:col-span-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 shadow-sm flex flex-col space-y-4">
           
-          <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-405 flex items-center gap-2">
-              <Inbox className="w-4 h-4 text-purple-400" />
+          <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+              <Inbox className="w-4 h-4 text-blue-400" />
               <span>Inbox Queue ({filteredTickets.length})</span>
             </h3>
             <span className="text-[9px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-mono">Live Sync</span>
@@ -451,26 +449,26 @@ export default function RefundsPage() {
 
           {/* Search Box */}
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-zinc-650 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={ticketSearch}
               onChange={(e) => setTicketSearch(e.target.value)}
               placeholder="Search ID, subject, customer..."
-              className="w-full pl-9 pr-3 py-2 bg-zinc-950/40 border border-zinc-805/85 focus:border-purple-500/50 rounded-xl text-xs text-zinc-200 placeholder-zinc-650 focus:outline-none transition-colors"
+              className="w-full pl-9 pr-3 py-2 bg-zinc-950/60 border border-zinc-800 focus:border-blue-500/50 rounded-lg text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none transition-colors"
             />
           </div>
 
           {/* Category Filter Tab Chips */}
-          <div className="flex flex-wrap gap-1 pb-1 border-b border-zinc-850/30">
+          <div className="flex flex-wrap gap-1 pb-1 border-b border-zinc-800">
             {(['ALL', 'OPEN', 'IN_PROGRESS', 'RESOLVED'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setStatusFilter(tab)}
-                className={`px-2 py-1 rounded-lg text-[9px] font-bold tracking-wide transition-all cursor-pointer ${
+                className={`px-2 py-1 rounded-lg text-[9px] font-semibold tracking-wide transition-all cursor-pointer ${
                   statusFilter === tab 
-                    ? 'bg-purple-600/10 border border-purple-500/20 text-purple-300' 
-                    : 'text-zinc-500 hover:text-zinc-350 hover:bg-zinc-950/20 border border-transparent'
+                    ? 'bg-zinc-800 border border-zinc-700 text-zinc-100 shadow-sm' 
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850 border border-transparent'
                 }`}
               >
                 {tab === 'ALL' ? 'ALL' : tab.replace('_', ' ')}
@@ -482,17 +480,16 @@ export default function RefundsPage() {
           <div className="flex-1 overflow-y-auto max-h-[520px] pr-1 space-y-2">
             {isTicketsLoading ? (
               <div className="py-24 text-center text-zinc-500 text-xs flex justify-center items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                 <span>Loading tickets...</span>
               </div>
             ) : filteredTickets.length === 0 ? (
-              <div className="text-center py-24 text-zinc-650 text-xs italic">
+              <div className="text-center py-24 text-zinc-500 text-xs italic">
                 No support tickets found.
               </div>
             ) : (
               filteredTickets.map((t) => {
                 const isSelected = selectedTicketId === t.id;
-                const stats = getCustomerStats(t.customer.name);
                 return (
                   <button
                     key={t.id}
@@ -503,39 +500,39 @@ export default function RefundsPage() {
                     }}
                     className={`w-full text-left p-3.5 rounded-xl border transition-all flex items-start gap-3 relative group cursor-pointer ${
                       isSelected 
-                        ? 'bg-[#0f1422] border-purple-500/35 shadow-md shadow-purple-950/10' 
-                        : 'bg-zinc-950/25 border-zinc-850/50 hover:border-zinc-800 hover:bg-zinc-950/40'
+                        ? 'bg-zinc-850/80 border-blue-500/40 shadow-sm' 
+                        : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-950/70'
                     }`}
                   >
                     {renderInitialsAvatar(t.customer.name)}
                     
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-mono font-bold text-purple-400">
+                        <span className="text-[9px] font-mono font-bold text-blue-400">
                           {t.ticketNumber}
                         </span>
-                        <span className="text-[8px] text-zinc-550">
+                        <span className="text-[8px] text-zinc-500">
                           {getRelativeTime(t.createdAt)}
                         </span>
                       </div>
 
-                      <h4 className={`text-xs font-semibold truncate ${isSelected ? 'text-purple-300' : 'text-zinc-200 group-hover:text-zinc-100'}`}>
+                      <h4 className={`text-xs font-semibold truncate ${isSelected ? 'text-zinc-100' : 'text-zinc-200 group-hover:text-zinc-100'}`}>
                         {t.subject}
                       </h4>
                       
-                      <div className="flex items-center justify-between pt-1 border-t border-zinc-850/20 text-[9px] text-zinc-500 font-mono">
+                      <div className="flex items-center justify-between pt-1 border-t border-zinc-800 text-[9px] text-zinc-500 font-mono">
                         <span className="font-semibold text-zinc-400">{t.customer.name}</span>
                         <div className="flex gap-1 shrink-0">
-                          <span className={`px-1 rounded-[4px] uppercase text-[7px] font-bold ${
-                            t.priority === 'HIGH' ? 'bg-rose-500/10 text-rose-405 border border-rose-500/10' :
-                            'bg-zinc-900 border border-zinc-800 text-zinc-500'
+                          <span className={`px-1 rounded uppercase text-[7px] font-bold ${
+                            t.priority === 'HIGH' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                            'bg-zinc-900 border border-zinc-800 text-zinc-400'
                           }`}>
                             {t.priority}
                           </span>
-                          <span className={`px-1 rounded-[4px] uppercase text-[7px] font-bold ${
-                            t.status === 'OPEN' ? 'bg-amber-500/10 text-amber-400 border border-amber-550/10' :
-                            t.status === 'IN_PROGRESS' ? 'bg-purple-500/10 text-purple-400 border border-purple-550/10 animate-pulse' :
-                            'bg-emerald-500/10 text-emerald-450 border border-emerald-550/10'
+                          <span className={`px-1 rounded uppercase text-[7px] font-bold ${
+                            t.status === 'OPEN' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                            t.status === 'IN_PROGRESS' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                            'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                           }`}>
                             {t.status.replace('_', ' ')}
                           </span>
@@ -550,7 +547,7 @@ export default function RefundsPage() {
         </div>
 
         {/* Right Column: Ticket Details & Workspace */}
-        <div className="lg:col-span-8 rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-6 glass flex flex-col space-y-6">
+        <div className="lg:col-span-8 rounded-xl border border-zinc-800 bg-zinc-900 p-6 shadow-sm flex flex-col space-y-6">
           {!selectedTicket ? (
             <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 py-24 text-center space-y-3">
               <MessageSquare className="w-14 h-14 text-zinc-700 animate-pulse" />
@@ -570,28 +567,28 @@ export default function RefundsPage() {
                   {renderInitialsAvatar(selectedTicket.customer.name)}
                   <div>
                     <h3 className="text-sm font-bold text-zinc-100">{selectedTicket.subject}</h3>
-                    <p className="text-[10px] text-zinc-550">
-                      ID: <span className="font-mono text-purple-450 font-bold">{selectedTicket.ticketNumber}</span> • Customer: <span className="font-semibold text-zinc-300">{selectedTicket.customer.name}</span>
+                    <p className="text-[10px] text-zinc-400">
+                      ID: <span className="font-mono text-blue-400 font-bold">{selectedTicket.ticketNumber}</span> • Customer: <span className="font-semibold text-zinc-300">{selectedTicket.customer.name}</span>
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setWorkspaceTab('chat')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-pointer ${
                       workspaceTab === 'chat'
-                        ? 'bg-purple-600/10 border border-purple-500/20 text-purple-300'
-                        : 'text-zinc-550 hover:text-zinc-300'
+                        ? 'bg-zinc-800 border border-zinc-700 text-zinc-100'
+                        : 'text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
                     Ticket Conversation
                   </button>
                   <button
                     onClick={() => setWorkspaceTab('operations')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-pointer ${
                       workspaceTab === 'operations'
-                        ? 'bg-purple-600/10 border border-purple-500/20 text-purple-300'
-                        : 'text-zinc-555 hover:text-zinc-300'
+                        ? 'bg-zinc-800 border border-zinc-700 text-zinc-100'
+                        : 'text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
                     Operations & Payouts
@@ -603,26 +600,26 @@ export default function RefundsPage() {
               {workspaceTab === 'chat' && (
                 <div className="flex-1 flex flex-col space-y-4">
                   {/* Chat Message Logs Container */}
-                  <div className="flex-1 min-h-[300px] max-h-[380px] overflow-y-auto bg-zinc-950/20 border border-zinc-850/50 rounded-2xl p-4 space-y-4">
+                  <div className="flex-1 min-h-[300px] max-h-[380px] overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-2xl p-4 space-y-4">
                     {chatHistories[selectedTicket.id]?.map((msg, idx) => {
                       const isCustomer = msg.sender === 'customer';
                       const isSystem = msg.sender === 'system';
                       
                       return (
                         <div 
-                          key={idx}
+                           key={idx}
                           className={`flex ${isCustomer ? 'justify-start' : isSystem ? 'justify-center' : 'justify-end'} animate-in fade-in duration-200`}
                         >
                           <div className={`max-w-[80%] rounded-2xl p-3.5 text-xs ${
                             isCustomer 
-                              ? 'bg-zinc-850 border border-zinc-800 text-zinc-200 rounded-tl-none' 
+                              ? 'bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-tl-none' 
                               : isSystem
-                              ? 'bg-purple-950/10 border border-purple-500/10 text-purple-300 font-mono text-[10px] text-center w-full shadow-inner'
-                              : 'bg-purple-600 text-white rounded-tr-none shadow-md shadow-purple-600/5'
+                              ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono text-[10px] text-center w-full'
+                              : 'bg-blue-600 text-white rounded-tr-none shadow-sm'
                           }`}>
-                            <div className="flex justify-between items-center gap-4 mb-1 text-[9px] opacity-70">
+                            <div className="flex justify-between items-center gap-4 mb-1 text-[9px] opacity-75">
                               <span className="font-bold">
-                                {isCustomer ? selectedTicket.customer.name : isSystem ? 'OpsPilot System Auto-Draft' : 'Support Agent'}
+                                {isCustomer ? selectedTicket.customer.name : isSystem ? 'OpsPilot System Audit' : 'Support Agent'}
                               </span>
                               <span>{msg.timestamp}</span>
                             </div>
@@ -641,11 +638,11 @@ export default function RefundsPage() {
                       onChange={(e) => setReplyText(e.target.value)}
                       placeholder={`Reply to ${selectedTicket.customer.name}...`}
                       onKeyDown={(e) => e.key === 'Enter' && handleSendReply()}
-                      className="flex-1 px-4 py-3 bg-zinc-950/40 border border-zinc-850/80 focus:border-purple-500/50 rounded-xl text-xs text-zinc-100 placeholder-zinc-650 focus:outline-none transition-colors"
+                      className="flex-1 px-4 py-3 bg-zinc-950 border border-zinc-800 focus:border-blue-500 rounded-xl text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none transition-colors"
                     />
                     <button
                       onClick={handleSendReply}
-                      className="px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition-all flex items-center justify-center cursor-pointer shadow-md shadow-purple-600/10 hover:shadow-purple-600/20 active:scale-[0.97]"
+                      className="px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-all flex items-center justify-center cursor-pointer shadow-sm active:scale-[0.97]"
                       title="Send Reply"
                     >
                       <Send className="w-4 h-4" />
@@ -663,49 +660,49 @@ export default function RefundsPage() {
                     const stats = getCustomerStats(selectedTicket.customer.name);
                     return (
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="p-4 rounded-xl border border-zinc-850 bg-zinc-950/20 flex items-center justify-between">
+                        <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950 flex items-center justify-between">
                           <div>
-                            <span className="text-[9px] font-bold text-zinc-550 uppercase block">Account Standing</span>
+                            <span className="text-[9px] font-bold text-zinc-400 uppercase block tracking-wider">Account Standing</span>
                             <span className="text-xs font-bold text-zinc-200 mt-1 block flex items-center gap-1.5">
-                              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                              <span>{stats.tier} Account</span>
+                              <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                              <span>{stats.tier} Tier</span>
                             </span>
                           </div>
-                          <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-bold uppercase text-white bg-gradient-to-tr ${stats.color}`}>
+                          <span className={`px-2 py-0.5 rounded text-[8.5px] font-bold uppercase ${stats.badgeClass}`}>
                             {stats.tier}
                           </span>
                         </div>
-                        <div className="p-4 rounded-xl border border-zinc-850 bg-zinc-950/20 flex items-center justify-between">
+                        <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950 flex items-center justify-between">
                           <div>
-                            <span className="text-[9px] font-bold text-zinc-550 uppercase block">Lifetime Value</span>
+                            <span className="text-[9px] font-bold text-zinc-400 uppercase block tracking-wider">Lifetime Value</span>
                             <span className="text-xs font-bold text-zinc-200 mt-1 block">
                               ₹{stats.ltv.toLocaleString('en-IN')}
                             </span>
                           </div>
-                          <TrendingUp className="w-5 h-5 text-emerald-450 shrink-0" />
+                          <TrendingUp className="w-5 h-5 text-emerald-400 shrink-0" />
                         </div>
-                        <div className="p-4 rounded-xl border border-zinc-850 bg-zinc-950/20 flex items-center justify-between">
+                        <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950 flex items-center justify-between">
                           <div>
-                            <span className="text-[9px] font-bold text-zinc-550 uppercase block">Refund Velocity</span>
+                            <span className="text-[9px] font-bold text-zinc-400 uppercase block tracking-wider">Refund Velocity</span>
                             <span className="text-xs font-bold text-zinc-200 mt-1 block">
                               {stats.refundRatio}% refund ratio
                             </span>
                           </div>
-                          <CreditCard className="w-5 h-5 text-zinc-500 shrink-0" />
+                          <CreditCard className="w-5 h-5 text-zinc-400 shrink-0" />
                         </div>
                       </div>
                     );
                   })()}
 
                   {/* Customer Details info block */}
-                  <div className="p-4 rounded-xl border border-zinc-850 bg-zinc-950/40 text-xs flex flex-wrap gap-x-6 gap-y-2">
+                  <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950 text-xs flex flex-wrap gap-x-6 gap-y-2">
                     <div className="flex items-center gap-1.5 text-zinc-400">
-                      <Mail className="w-3.5 h-3.5 text-zinc-550 shrink-0" />
+                      <Mail className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                       <span>{selectedTicket.customer.email}</span>
                     </div>
                     {selectedTicket.customer.phone && (
                       <div className="flex items-center gap-1.5 text-zinc-400">
-                        <Phone className="w-3.5 h-3.5 text-zinc-555 shrink-0" />
+                        <Phone className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                         <span>{selectedTicket.customer.phone}</span>
                       </div>
                     )}
@@ -713,10 +710,10 @@ export default function RefundsPage() {
 
                   {/* Eligible Orders */}
                   <div className="space-y-3">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-550 block">Customer Eligible Orders</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 block">Customer Eligible Orders</span>
                     
                     {selectedTicket.customer.orders.length === 0 ? (
-                      <div className="p-6 text-center text-zinc-650 text-xs italic border border-dashed border-zinc-850 rounded-xl">
+                      <div className="p-6 text-center text-zinc-500 text-xs italic border border-dashed border-zinc-800 rounded-xl">
                         No orders registered for this customer.
                       </div>
                     ) : (
@@ -731,21 +728,21 @@ export default function RefundsPage() {
                               key={o.id}
                               className={`p-4 rounded-xl border flex flex-col justify-between space-y-4 transition-all ${
                                 isOrderMentioned 
-                                  ? 'bg-[#0f1422]/60 border-purple-500/25 shadow-md shadow-purple-950/10'
-                                  : 'bg-zinc-950/15 border-zinc-850/50 hover:border-zinc-800'
+                                  ? 'bg-zinc-900 border-blue-500/40 shadow-sm'
+                                  : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
                               }`}
                             >
                               <div className="flex items-start justify-between">
                                 <div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs font-mono font-bold text-purple-400">Order #{o.orderNumber}</span>
+                                    <span className="text-xs font-mono font-bold text-blue-400">Order #{o.orderNumber}</span>
                                     {isOrderMentioned && (
-                                      <span className="text-[8px] bg-purple-500/10 text-purple-400 font-bold border border-purple-500/25 px-1.5 py-0.25 rounded uppercase tracking-wider">
+                                      <span className="text-[8px] bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
                                         Mentioned in Ticket
                                       </span>
                                     )}
                                   </div>
-                                  <span className="text-[10px] text-zinc-500 block mt-1">
+                                  <span className="text-[10px] text-zinc-400 block mt-1">
                                     Purchased: {new Date(o.createdAt).toLocaleDateString()}
                                   </span>
                                   
@@ -772,12 +769,12 @@ export default function RefundsPage() {
                                 </div>
                               </div>
 
-                              <div className="border-t border-zinc-850/30 pt-3 flex items-center justify-between">
+                              <div className="border-t border-zinc-800/60 pt-3 flex items-center justify-between">
                                 <span
                                   className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                                    o.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/10' :
-                                    o.status === 'REFUNDED' ? 'bg-rose-500/10 text-rose-455 border border-rose-500/10' :
-                                    o.status === 'DELAYED' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/10 animate-pulse' :
+                                    o.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                    o.status === 'REFUNDED' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                                    o.status === 'DELAYED' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                                     'bg-zinc-800 text-zinc-400'
                                   }`}
                                 >
@@ -787,20 +784,20 @@ export default function RefundsPage() {
                                 {!alreadyRefunded ? (
                                   <button
                                     onClick={() => handleOpenRefundModal(o)}
-                                    className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-705 text-[10px] font-bold text-purple-300 hover:text-purple-200 transition-all flex items-center gap-1 cursor-pointer"
+                                    className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[10px] font-semibold text-zinc-200 transition-all flex items-center gap-1 cursor-pointer"
                                   >
-                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    <RotateCcw className="w-3.5 h-3.5 text-blue-400" />
                                     <span>Issue Refund</span>
                                   </button>
                                 ) : (
                                   <div className="flex items-center gap-1.5">
                                     {activeRefund?.status === 'PENDING' ? (
-                                      <span className="text-[10px] text-amber-405 font-bold flex items-center gap-1 bg-amber-500/5 px-2.5 py-0.5 rounded border border-amber-500/15 animate-pulse">
-                                        <AlertCircle className="w-3.5 h-3.5 text-amber-450" />
+                                      <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1 bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20">
+                                        <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
                                         <span>Refund Pending (Review)</span>
                                       </span>
                                     ) : (
-                                      <span className="text-[10px] text-rose-405 font-bold flex items-center gap-1 bg-rose-500/5 px-2.5 py-0.5 rounded border border-rose-500/15">
+                                      <span className="text-[10px] text-rose-400 font-bold flex items-center gap-1 bg-rose-500/10 px-2.5 py-0.5 rounded border border-rose-500/20">
                                         <Check className="w-3.5 h-3.5" />
                                         <span>Refund Settled</span>
                                       </span>
@@ -824,20 +821,20 @@ export default function RefundsPage() {
       </div>
 
       {/* Refunds History Table */}
-      <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-6 glass">
-        <h3 className="text-sm font-semibold text-zinc-200 pb-4 border-b border-zinc-800/80 flex items-center gap-2">
-          <History className="w-4.5 h-4.5 text-purple-400" />
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+        <h3 className="text-sm font-semibold text-zinc-200 pb-4 border-b border-zinc-800 flex items-center gap-2">
+          <History className="w-4.5 h-4.5 text-blue-400" />
           <span>Audit Logs: Refund Transaction History</span>
         </h3>
 
         {isRefundsLoading ? (
-          <div className="py-12 text-center text-zinc-550 text-xs">Loading audit trail logs...</div>
+          <div className="py-12 text-center text-zinc-500 text-xs">Loading audit trail logs...</div>
         ) : refunds.length === 0 ? (
-          <div className="text-center py-12 text-zinc-555 text-xs italic">No refunds records registered.</div>
+          <div className="text-center py-12 text-zinc-500 text-xs italic">No refunds records registered.</div>
         ) : (
-          <div className="overflow-x-auto mt-4 border border-zinc-800/50 rounded-xl bg-zinc-950/20">
+          <div className="overflow-x-auto mt-4 border border-zinc-800 rounded-xl bg-zinc-950">
             <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-900/50 border-b border-zinc-800/80 text-zinc-405 uppercase tracking-wider text-[9px] font-bold">
+              <thead className="bg-zinc-900 border-b border-zinc-800 text-zinc-400 uppercase tracking-wider text-[9px] font-bold">
                 <tr>
                   <th className="p-3.5">Refund ID</th>
                   <th className="p-3.5">Order #</th>
@@ -848,20 +845,20 @@ export default function RefundsPage() {
                   <th className="p-3.5 text-right">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/30 text-zinc-300">
+              <tbody className="divide-y divide-zinc-800/50 text-zinc-300">
                 {refunds.map((r) => (
-                  <tr key={r.id} className="hover:bg-zinc-905/30 transition-colors">
+                  <tr key={r.id} className="hover:bg-zinc-900/50 transition-colors">
                     <td className="p-3.5 font-mono text-[9px] text-zinc-500">#{r.id.substring(0, 8)}</td>
-                    <td className="p-3.5 font-mono text-[10px] text-purple-300">Order #{r.order.orderNumber}</td>
+                    <td className="p-3.5 font-mono text-[10px] text-blue-400">Order #{r.order.orderNumber}</td>
                     <td className="p-3.5 font-semibold text-zinc-200">{r.order.customer.name}</td>
                     <td className="p-3.5 text-center">
                       <span
                         className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                           r.riskScore > 70
-                            ? 'bg-rose-500/10 text-rose-400 border border-rose-500/10'
+                            ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                             : r.riskScore > 40
-                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/10'
-                            : 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/10'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                         }`}
                       >
                         {r.riskScore}/100
@@ -877,10 +874,10 @@ export default function RefundsPage() {
                       <span
                         className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
                           r.status === 'APPROVED' || r.status === 'EXECUTED'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                             : r.status === 'PENDING'
-                            ? 'bg-amber-500/10 text-amber-405 border border-amber-500/10 animate-pulse'
-                            : 'bg-rose-500/10 text-rose-455 border border-rose-500/10'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                         }`}
                       >
                         {r.status}
@@ -896,14 +893,14 @@ export default function RefundsPage() {
 
       {/* Itemized Refund Wizard Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-[#0f1422]/95 backdrop-blur-2xl p-6 shadow-2xl flex flex-col md:flex-row gap-6 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl flex flex-col md:flex-row gap-6 animate-in fade-in zoom-in-95 duration-200">
             
             {/* Left Hand: Refund item checklist options */}
             <div className="flex-1 space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-800/80">
+              <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
                 <h3 className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
-                  <RotateCcw className="w-4 h-4 text-purple-400" />
+                  <RotateCcw className="w-4 h-4 text-blue-400" />
                   <span>Itemized Refund Wizard</span>
                 </h3>
               </div>
@@ -919,8 +916,8 @@ export default function RefundsPage() {
                       key={item.id}
                       className={`p-3 rounded-xl border flex items-center justify-between gap-4 transition-all ${
                         isChecked 
-                          ? 'bg-purple-950/5 border-purple-500/20' 
-                          : 'bg-zinc-950/25 border-zinc-900/60 opacity-60'
+                          ? 'bg-zinc-800/80 border-blue-500/40' 
+                          : 'bg-zinc-950 border-zinc-800 opacity-60'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -928,22 +925,22 @@ export default function RefundsPage() {
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => toggleItemSelection(item.id)}
-                          className="w-4 h-4 rounded text-purple-600 bg-zinc-900 border-zinc-800 focus:ring-purple-500 focus:ring-offset-zinc-950 cursor-pointer"
+                          className="w-4 h-4 rounded text-blue-600 bg-zinc-950 border-zinc-700 focus:ring-blue-500 focus:ring-offset-zinc-900 cursor-pointer"
                         />
                         <div className="min-w-0">
-                          <span className="text-xs font-semibold text-zinc-250 block truncate">{item.product.name}</span>
-                          <span className="text-[10px] text-zinc-550 block font-mono">₹{Number(item.price).toLocaleString('en-IN')} each</span>
+                          <span className="text-xs font-semibold text-zinc-200 block truncate">{item.product.name}</span>
+                          <span className="text-[10px] text-zinc-400 block font-mono">₹{Number(item.price).toLocaleString('en-IN')} each</span>
                         </div>
                       </div>
 
                       {/* Quantity selector */}
                       {isChecked && (
                         <div className="flex items-center gap-2 shrink-0">
-                          <label className="text-[9px] text-zinc-500 font-bold uppercase">Qty:</label>
+                          <label className="text-[9px] text-zinc-400 font-bold uppercase">Qty:</label>
                           <select
                             value={currentQty}
                             onChange={(e) => setItemQuantity(item.id, Number(e.target.value))}
-                            className="bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500"
+                            className="bg-zinc-900 border border-zinc-700 rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500"
                           >
                             {[...Array(item.quantity)].map((_, i) => (
                               <option key={i + 1} value={i + 1}>{i + 1}</option>
@@ -957,25 +954,25 @@ export default function RefundsPage() {
               </div>
 
               {/* Custom Override Toggle */}
-              <div className="pt-2 border-t border-zinc-850/40 space-y-3">
+              <div className="pt-2 border-t border-zinc-800 space-y-3">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-zinc-450 font-medium">Custom Refund Amount Override</span>
+                  <span className="text-zinc-400 font-medium">Custom Refund Amount Override</span>
                   <input
                     type="checkbox"
                     checked={isCustomAmountEnabled}
                     onChange={(e) => setIsCustomAmountEnabled(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded text-purple-600 bg-zinc-900 border-zinc-800 cursor-pointer"
+                    className="w-3.5 h-3.5 rounded text-blue-600 bg-zinc-950 border-zinc-700 cursor-pointer"
                   />
                 </div>
                 {isCustomAmountEnabled && (
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs font-mono">₹</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-mono">₹</span>
                     <input
                       type="number"
                       value={customRefundAmount}
                       onChange={(e) => setCustomRefundAmount(e.target.value)}
                       placeholder="Enter override value..."
-                      className="w-full pl-7 pr-3 py-2 bg-zinc-950/40 border border-zinc-800/80 focus:border-purple-500/50 rounded-lg text-xs text-zinc-200 placeholder-zinc-650 focus:outline-none"
+                      className="w-full pl-7 pr-3 py-2 bg-zinc-950 border border-zinc-800 focus:border-blue-500 rounded-lg text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none"
                     />
                   </div>
                 )}
@@ -983,7 +980,7 @@ export default function RefundsPage() {
 
               {/* Refund Reason input */}
               <div>
-                <label className="text-[10px] text-zinc-550 font-bold uppercase tracking-wider block mb-1">
+                <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
                   Refund Reason (Audit Log)
                 </label>
                 <input
@@ -991,13 +988,13 @@ export default function RefundsPage() {
                   value={refundReason}
                   onChange={(e) => setRefundReason(e.target.value)}
                   placeholder="Defective product, double charged..."
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-150 focus:outline-none focus:border-purple-500/50"
+                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
 
             {/* Right Hand: SVG risk dial & summary */}
-            <div className="w-full md:w-64 rounded-xl border border-zinc-850 bg-zinc-950/30 p-5 flex flex-col justify-between space-y-4">
+            <div className="w-full md:w-64 rounded-xl border border-zinc-800 bg-zinc-950 p-5 flex flex-col justify-between space-y-4">
               
               {/* Dynamic Risk Gauge */}
               {(() => {
@@ -1016,7 +1013,7 @@ export default function RefundsPage() {
 
                 return (
                   <div className="space-y-4 flex flex-col items-center">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 text-center block">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400 text-center block">
                       Governance Risk Engine
                     </span>
 
@@ -1028,11 +1025,11 @@ export default function RefundsPage() {
                           cx="56"
                           cy="56"
                           r={radius}
-                          stroke="#18181b"
+                          stroke="#27272a"
                           strokeWidth="8"
                           fill="transparent"
                         />
-                        {/* Glowing progress track */}
+                        {/* Progress track */}
                         <circle
                           cx="56"
                           cy="56"
@@ -1048,15 +1045,15 @@ export default function RefundsPage() {
                       {/* Center text */}
                       <div className="absolute flex flex-col items-center justify-center">
                         <span className="text-xl font-bold text-zinc-100">{score}%</span>
-                        <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-550">Risk</span>
+                        <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400">Risk</span>
                       </div>
                     </div>
 
                     {/* Policy reasons alerts list */}
-                    <div className="w-full space-y-2 border-t border-zinc-850/40 pt-3">
+                    <div className="w-full space-y-2 border-t border-zinc-800/60 pt-3">
                       {risk.rules.length === 0 ? (
-                        <div className="text-[10px] text-zinc-500 flex items-center gap-1.5">
-                          <Check className="w-3.5 h-3.5 text-emerald-450 shrink-0" />
+                        <div className="text-[10px] text-zinc-400 flex items-center gap-1.5">
+                          <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <span>No policy warnings flagged.</span>
                         </div>
                       ) : (
@@ -1070,15 +1067,15 @@ export default function RefundsPage() {
                     </div>
 
                     {/* Governance status indicator */}
-                    <div className="w-full p-2.5 rounded-lg border border-zinc-850/60 bg-zinc-950/50 flex justify-between items-center text-[10px]">
-                      <span className="text-zinc-500">Decision:</span>
+                    <div className="w-full p-2.5 rounded-lg border border-zinc-800 bg-zinc-900 flex justify-between items-center text-[10px]">
+                      <span className="text-zinc-400">Decision:</span>
                       {risk.requiresApproval ? (
-                        <span className="text-amber-450 font-bold flex items-center gap-1 animate-pulse">
+                        <span className="text-amber-400 font-bold flex items-center gap-1">
                           <AlertCircle className="w-3 h-3 shrink-0" />
                           <span>Manager Review</span>
                         </span>
                       ) : (
-                        <span className="text-emerald-450 font-bold flex items-center gap-1">
+                        <span className="text-emerald-400 font-bold flex items-center gap-1">
                           <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                           <span>Auto Bypass</span>
                         </span>
@@ -1089,24 +1086,24 @@ export default function RefundsPage() {
               })()}
 
               {/* Submit / Cancel actions */}
-              <div className="space-y-2 pt-2 border-t border-zinc-850/40">
+              <div className="space-y-2 pt-2 border-t border-zinc-800">
                 <div className="flex justify-between items-center text-xs pb-2">
-                  <span className="text-zinc-500 font-medium">Refund Amount:</span>
-                  <span className="text-zinc-200 font-bold text-sm">
+                  <span className="text-zinc-400 font-medium">Refund Amount:</span>
+                  <span className="text-zinc-100 font-bold text-sm">
                     ₹{finalRefundAmount.toLocaleString('en-IN')}
                   </span>
                 </div>
                 <button
                   onClick={handleSubmitRefund}
                   disabled={requestRefundMutation.isPending || finalRefundAmount <= 0}
-                  className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-850 text-xs font-bold text-white disabled:text-zinc-500 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-purple-600/10"
+                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-xs font-semibold text-white disabled:text-zinc-500 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                 >
                   {requestRefundMutation.isPending ? 'Submitting...' : 'Confirm Refund'}
                   {!requestRefundMutation.isPending && <ArrowRight className="w-4 h-4" />}
                 </button>
                 <button
                   onClick={handleCloseRefundModal}
-                  className="w-full py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-705 text-zinc-400 hover:text-zinc-200 text-xs font-semibold transition-all cursor-pointer"
+                  className="w-full py-2 rounded-xl bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
