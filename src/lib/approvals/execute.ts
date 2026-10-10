@@ -1,3 +1,4 @@
+import { processedApprovalResult } from './outcome';
 import { prisma } from '@/lib/db/prisma';
 import { startExecution, logExecutionEvent, finishExecution } from '@/lib/timeline/tracker';
 
@@ -16,13 +17,13 @@ export async function executeApproval(approvalId: string): Promise<ApprovalResul
 
   const approval = await prisma.approval.findUnique({
     where: { id: approvalId },
-    include: { refund: true }
+    include: { refund: true, execution: { select: { status: true } } }
   });
 
   if (!approval) return { ok: false, status: 404, body: { error: 'Approval request not found' } };
 
   if (approval.status === 'APPROVED') {
-    return { ok: true, status: 200, body: { success: true, approvalStatus: 'APPROVED', executionStatus: 'SUCCESS', alreadyProcessed: true } };
+    return processedApprovalResult(approval.execution?.status);
   }
   if (approval.status !== 'PENDING') {
     return { ok: false, status: 400, body: { error: 'Approval request is already processed' } };
@@ -159,7 +160,7 @@ export async function rejectApproval(approvalId: string, reason?: string): Promi
 
   const approval = await prisma.approval.findUnique({
     where: { id: approvalId },
-    include: { refund: true }
+    include: { refund: true, execution: { select: { status: true } } }
   });
 
   if (!approval) return { ok: false, status: 404, body: { error: 'Approval request not found' } };

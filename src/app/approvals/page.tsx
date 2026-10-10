@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ShieldCheck, Check, X, AlertCircle, ShoppingBag, Database, ArrowRight, AlertTriangle, ArrowUpRight, Tag, Loader2 } from 'lucide-react';
+import { ShieldCheck, Check, X, AlertCircle, ShoppingBag, Database, ArrowRight, AlertTriangle, Tag, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { executionLabel, type ExecutionStatus } from '@/lib/approvals/outcome';
 import { useWorkspace } from '@/components/Providers';
 
 interface Approval {
@@ -16,6 +17,7 @@ interface Approval {
   metadata: any;
   createdAt: string;
   updatedAt: string;
+  execution: { status: ExecutionStatus; completedAt: string | null } | null;
 }
 
 export default function ApprovalsPage() {
@@ -33,13 +35,14 @@ export default function ApprovalsPage() {
   }>>({});
 
   // Fetch all approvals
-  const { data: approvalsData, isLoading } = useQuery<{ approvals: Approval[] }>({
+  const { data: approvalsData, isLoading, isError, refetch } = useQuery<{ approvals: Approval[] }>({
     queryKey: ['approvals'],
     queryFn: async () => {
       const allRes = await fetch('/api/approvals');
       if (!allRes.ok) throw new Error('Failed to fetch approvals');
       return allRes.json();
     },
+    retry: false, // Polling and the explicit Retry control handle read recovery.
     refetchInterval: 3000 // Poll for fast updates
   });
 
@@ -83,31 +86,7 @@ export default function ApprovalsPage() {
   });
 
   const getStepsForType = (type: 'INVENTORY_UPDATE' | 'REFUND_REQUEST' | 'DISCOUNT_CREATION') => {
-    switch (type) {
-      case 'INVENTORY_UPDATE':
-        return [
-          'Verify Supplier CSV Schema',
-          'Evaluate Modified SKU Delta',
-          'Execute Atomic Database Upsert Transactions',
-          'Notify Shopify Fulfillment Webhooks'
-        ];
-      case 'REFUND_REQUEST':
-        return [
-          'Validate Order Transaction Details',
-          'Run Refund Velocity Limit Check',
-          'Settle Payout Transaction with Gateway API',
-          'Update Shopify Customer Order Ledger'
-        ];
-      case 'DISCOUNT_CREATION':
-        return [
-          'Verify Campaign Promo Parameters',
-          'Audit Rule Constraints (Max Discount Check)',
-          'Deploy Coupon Rule to Frontends',
-          'Synchronize Marketing Analytics Channels'
-        ];
-      default:
-        return ['Validating Request', 'Evaluating Constraints', 'Applying Changes', 'Syncing Integrations'];
-    }
+    return [type === 'REFUND_REQUEST' ? 'Apply refund to demo records (no real payout)' : type === 'DISCOUNT_CREATION' ? 'Apply discount to demo records (no live storefront)' : 'Apply inventory changes to demo records (no vendor sync)'];
   };
 
   const handleApprove = async (approval: Approval) => {
@@ -120,27 +99,12 @@ export default function ApprovalsPage() {
       [id]: { currentStep: 0, status: 'EXECUTING', steps }
     }));
 
-    // Start simulation timer for progress steps
-    let currentIdx = 0;
-    const interval = setInterval(() => {
-      currentIdx++;
-      setExecutingApprovals(prev => {
-        if (!prev[id] || prev[id].status !== 'EXECUTING') return prev;
-        return {
-          ...prev,
-          [id]: { 
-            ...prev[id], 
-            currentStep: Math.min(currentIdx, steps.length - 1) 
-          }
-        };
-      });
-    }, 600);
 
     try {
-      await approveMutation.mutateAsync(id);
+      const result = await approveMutation.mutateAsync(id);
+      if (result.executionStatus !== 'SUCCESS') throw new Error('The decision was recorded, but execution has not succeeded. Check Audit Logs.');
       
       // Stop timer and set success status
-      clearInterval(interval);
       setExecutingApprovals(prev => ({
         ...prev,
         [id]: { ...prev[id], currentStep: steps.length, status: 'SUCCESS' }
@@ -148,10 +112,10 @@ export default function ApprovalsPage() {
       
       showToast(
         approval.type === 'REFUND_REQUEST' 
-          ? `Refund request of ₹${(approval.metadata as any).amount?.toLocaleString('en-IN')} approved and settled successfully.`
+          ? `Refund request of ₹${(approval.metadata as any).amount?.toLocaleString('en-IN')} approved and applied to demo records.`
           : approval.type === 'DISCOUNT_CREATION'
           ? `Discount code ${(approval.metadata as any).code} created successfully.`
-          : 'Inventory updates successfully applied and synced.', 
+          : 'Inventory updates applied to demo records.',
         'success'
       );
 
@@ -172,13 +136,14 @@ export default function ApprovalsPage() {
       }, 1800);
 
     } catch (err: any) {
-      clearInterval(interval);
       const errMsg = err.message || 'Approval execution failed';
       setExecutingApprovals(prev => ({
         ...prev,
         [id]: { ...prev[id], status: 'FAILED', error: errMsg }
       }));
       showToast(errMsg, 'error');
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
     }
   };
 
@@ -217,7 +182,7 @@ export default function ApprovalsPage() {
   const isAnyCardMutating = approveMutation.isPending || rejectMutation.isPending;
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-4 md:p-8 space-y-8 max-w-7xl mx-auto">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-zinc-100 tracking-tight">Approvals Hub</h2>
@@ -228,7 +193,7 @@ export default function ApprovalsPage() {
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
           <ShieldCheck className="w-4.5 h-4.5 text-emerald-400" />
-          <span>Active Pending Review Queue ({pendingApprovals.length})</span>
+          <span>Active Pending Review Queue ({isLoading ? 'loading…' : isError ? 'unavailable' : pendingApprovals.length})</span>
         </h3>
 
         {isLoading ? (
@@ -236,13 +201,16 @@ export default function ApprovalsPage() {
             <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
             <span>Loading queue...</span>
           </div>
+        ) : isError ? (
+          <div role="alert" className="rounded-xl border border-rose-500/30 p-6 text-sm text-zinc-300">Approvals could not be loaded. <button onClick={() => void refetch()} className="text-blue-400 underline">Retry</button></div>
         ) : pendingApprovals.length === 0 ? (
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-12 text-center text-zinc-500 max-w-xl mx-auto flex flex-col items-center justify-center">
             <ShieldCheck className="w-10 h-10 text-emerald-500/30 mb-2" />
             <h4 className="text-xs font-bold text-zinc-300">Queue is Clear</h4>
             <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
-              All transactions have cleared governance bounds. No operational tasks require manual manager oversight.
+              There are no pending approval requests in the current demo data. This does not mean every recorded action succeeded.
             </p>
+            <Link href="/dashboard#demo-guide" className="mt-4 text-xs text-blue-400 underline underline-offset-4">Start the guided demo</Link>
           </div>
         ) : (
           <div className="space-y-6">
@@ -284,10 +252,10 @@ export default function ApprovalsPage() {
                         <div>
                           <h4 className="text-sm font-semibold text-zinc-200">
                             {a.type === 'INVENTORY_UPDATE'
-                              ? `Syncing Inventory (${meta.filename})`
+                              ? `Applying demo inventory (${meta.filename})`
                               : a.type === 'DISCOUNT_CREATION'
-                              ? `Deploying Coupon Code ${meta.code}`
-                              : `Settling Refund for Order #${meta.orderNumber}`}
+                              ? `Applying demo discount ${meta.code}`
+                              : `Applying demo refund for Order #${meta.orderNumber}`}
                           </h4>
                           <p className="text-[10px] text-zinc-500 mt-0.5">
                             Approval ID: <span className="font-mono text-zinc-400">#{a.id}</span>
@@ -369,13 +337,7 @@ export default function ApprovalsPage() {
                           >
                             Dismiss
                           </button>
-                          <button
-                            onClick={() => handleApprove(a)}
-                            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[10.5px] font-semibold text-white transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
-                          >
-                            <span>Retry Execution</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
+                          <Link href="/timeline" className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white flex items-center gap-1">Inspect Audit Logs <ArrowRight className="w-3.5 h-3.5" /></Link>
                         </div>
                       </div>
                     )}
@@ -473,7 +435,7 @@ export default function ApprovalsPage() {
                           </p>
                         </div>
                         <div className="text-[10px] text-zinc-500 mt-4">
-                          Note: Executing this approval submits the payout to settlement systems.
+                          Demo only: execution changes synthetic records. No real payout is sent.
                         </div>
                       </div>
                     </div>
@@ -526,7 +488,7 @@ export default function ApprovalsPage() {
                           </p>
                         </div>
                         <div className="text-[10px] text-zinc-500 mt-4">
-                          Note: Executing this approval deploys the discount code instantly to storefront checkout channels.
+                          Demo only: execution changes synthetic records. No live storefront is updated.
                         </div>
                       </div>
                     </div>
@@ -625,7 +587,11 @@ export default function ApprovalsPage() {
           <span>Processed Approvals History</span>
         </h3>
         
-        {pastApprovals.length === 0 ? (
+        {isError ? (
+          <p className="text-xs text-zinc-400">History unavailable until the approval read succeeds.</p>
+        ) : isLoading ? (
+          <p className="text-xs text-zinc-400">Loading history…</p>
+        ) : pastApprovals.length === 0 ? (
           <div className="text-zinc-600 text-xs italic">No historical approvals.</div>
         ) : (
           <div className="overflow-x-auto border border-zinc-800 rounded-xl bg-zinc-900 shadow-sm">
@@ -636,8 +602,8 @@ export default function ApprovalsPage() {
                   <th className="p-3.5">Type</th>
                   <th className="p-3.5">Processor</th>
                   <th className="p-3.5">Review Date</th>
-                  <th className="p-3.5">Details</th>
-                  <th className="p-3.5 text-right">Status</th>
+                  <th className="p-3.5">Execution</th>
+                  <th className="p-3.5 text-right">Decision</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800 text-zinc-300">
@@ -655,8 +621,8 @@ export default function ApprovalsPage() {
                     <td className="p-3.5 text-zinc-500">
                       {new Date(a.updatedAt).toLocaleDateString()} {new Date(a.updatedAt).toLocaleTimeString()}
                     </td>
-                    <td className="p-3.5 text-zinc-400 truncate max-w-[200px]" title={a.reason || 'Approved'}>
-                      {a.status === 'REJECTED' ? `❌ ${a.reason || 'Rejected'}` : '✓ Executed successfully'}
+                    <td className="p-3.5 text-zinc-400 truncate max-w-[200px]" title={a.reason || executionLabel(a.status, a.execution?.status)}>
+                      <span className={a.execution?.status === 'FAILED' ? 'text-rose-400' : a.execution?.status === 'SUCCESS' ? 'text-emerald-400' : 'text-zinc-400'}>{executionLabel(a.status, a.execution?.status)}</span>
                     </td>
                     <td className="p-3.5 text-right">
                       <span

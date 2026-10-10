@@ -1,0 +1,9 @@
+# Deployment uses the project's environment configured in Vercel.
+.env
+.env.*
+.git/
+.next/
+node_modules/
+test/
+coverage/
+*.log

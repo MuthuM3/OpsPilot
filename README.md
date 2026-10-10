@@ -2,9 +2,9 @@
 
 OpsPilot lets an online store's operations team get things done just by chatting. You can ask it what's going on ("why are shipments delayed?") and tell it what to do ("refund this order", "add these products") in plain English — but anything risky stops for a human to approve before it actually happens, and every action is logged so you can see who did what and why.
 
-**▶ Live demo:** https://ops-pilot-gqt1ju1go-one-piece-3.vercel.app/
+**▶ Live demo:** https://ops-pilot-taupe.vercel.app/dashboard
 
-> Tip: in the sidebar, click **⚡ Generate Store Data** to populate the demo, set your role to **Manager**, then open a **New Chat** for the briefing.
+> Start with the dashboard’s guided demo. Its buttons prepare assistant input for you to review and send. The public store uses shared synthetic data; reseeding clears requests and history for everyone.
 
 ---
 
@@ -101,7 +101,7 @@ To be straight about it: testing so far has been **manual, hands-on checking** o
 
 ## Known limitations & risks
 
-There's no real login or identity yet — the Manager/Operator switch is a convincing way to *show* governance, but it isn't production authentication, so don't ship it as-is. The integrations are simulated, so nothing actually talks to Shopify, Stripe, or Zendesk. Because there's a language model in the loop, behavior varies a little run to run — sometimes it'll ask you to confirm instead of acting straight away — and how fast it feels depends on your model endpoint (multi-step requests can take a few seconds). It's also single-tenant, has no rate limiting, and doesn't have an automated test suite yet. A few analytics (like attributing delays to a specific carrier or warehouse) aren't backed by the data model, so the assistant says so rather than guessing. And the demo data is disposable — "Generate Store Data" wipes and rebuilds it.
+There's no real login or identity yet — the Manager/Operator switch is a convincing way to *show* governance, but it isn't production authentication, so don't ship it as-is. The integrations are simulated, so nothing actually talks to Shopify, Stripe, or Zendesk. Because there's a language model in the loop, behavior varies a little run to run — sometimes it'll ask you to confirm instead of acting straight away — and how fast it feels depends on your model endpoint (multi-step requests can take a few seconds). It's also single-tenant, has no rate limiting, and has bounded automated checks for dashboard counts and approval outcomes, but no full automated end-to-end suite yet. A few analytics (like attributing delays to a specific carrier or warehouse) aren't backed by the data model, so the assistant says so rather than guessing. And the demo data is disposable — "Generate Store Data" wipes and rebuilds it.
 
 ## Team
 

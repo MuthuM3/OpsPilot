@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useWorkspace } from '@/components/Providers';
@@ -17,11 +17,21 @@ import {
   RefreshCw
 } from 'lucide-react';
 
+const subscribeToViewport = (listener: () => void) => {
+  const media = window.matchMedia('(max-width: 639px)');
+  media.addEventListener('change', listener);
+  return () => media.removeEventListener('change', listener);
+};
+const narrowViewport = () => window.matchMedia('(max-width: 639px)').matches;
+const serverViewport = () => false;
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { isChatOpen, setIsChatOpen, showToast, role, setRole } = useWorkspace();
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const isMobile = useSyncExternalStore(subscribeToViewport, narrowViewport, serverViewport);
+  const [collapsedOverride, setCollapsedOverride] = useState<boolean | null>(null);
+  const isCollapsed = collapsedOverride ?? isMobile;
 
   const queryClient = useQueryClient();
 
@@ -60,7 +70,7 @@ export default function Sidebar() {
   return (
     <div 
       className={`h-full border-r border-zinc-800/80 bg-zinc-950 flex flex-col shrink-0 transition-all duration-300 relative ${
-        isCollapsed ? 'w-16' : 'w-64'
+        isCollapsed ? 'w-16' : 'w-64 max-sm:absolute max-sm:inset-y-0 max-sm:left-0 max-sm:z-50'
       }`}
     >
       {/* Brand Header */}
@@ -84,11 +94,13 @@ export default function Sidebar() {
         
         {/* Collapse Toggle */}
         <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
+          onClick={() => setCollapsedOverride(!isCollapsed)}
           className={`p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors ${
             isCollapsed ? 'absolute -right-3 top-4 z-50 bg-zinc-900 border border-zinc-800 rounded-full p-1' : ''
           }`}
           title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!isCollapsed}
         >
           <Menu className="w-4 h-4" />
         </button>
@@ -117,6 +129,8 @@ export default function Sidebar() {
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60 border border-transparent'
                   } ${isCollapsed ? 'justify-center' : ''}`}
                   title={item.name}
+                  aria-label={item.name}
+                  onClick={() => { if (isMobile) setCollapsedOverride(true); }}
                 >
                   <Icon
                     className={`w-4 h-4 shrink-0 transition-colors ${
@@ -151,7 +165,7 @@ export default function Sidebar() {
             {/* Role switcher — demonstrates governance roles (Manager can approve, Operator cannot) */}
             <div className="p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 space-y-1.5">
               <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-500 block">
-                Acting as
+                Demo role · no sign-in
               </span>
               <div className="flex items-center p-0.5 rounded-lg bg-zinc-950 border border-zinc-800">
                 <button
@@ -172,7 +186,7 @@ export default function Sidebar() {
                 </button>
               </div>
               <p className="text-[8.5px] text-zinc-500 leading-tight">
-                {role === 'manager' ? 'Can approve & execute governed actions.' : 'Can request actions; approvals need a Manager.'}
+                {role === 'manager' ? 'Manager chat behavior demo; not authenticated access.' : 'Operator chat behavior demo; not authenticated access.'}
               </p>
             </div>
 
@@ -194,7 +208,7 @@ export default function Sidebar() {
               </div>
               
               <button
-                onClick={() => generateMutation.mutate()}
+                onClick={() => { if (window.confirm('Replace all shared demo store records? This clears existing requests and history for every demo visitor.')) generateMutation.mutate(); }}
                 disabled={generateMutation.isPending}
                 className="w-full py-2 mt-1.5 rounded-lg bg-zinc-850 hover:bg-zinc-800 border border-zinc-700/80 text-[10px] font-semibold text-zinc-200 transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
               >
@@ -203,7 +217,7 @@ export default function Sidebar() {
               </button>
             </div>
             <div className="text-[9px] text-zinc-500 text-center font-medium pt-1">
-              OpsPilot • Standard Mode
+              OpsPilot • Prototype
             </div>
           </div>
         ) : (
@@ -212,7 +226,7 @@ export default function Sidebar() {
             <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" title="Stripe (simulated)" />
             <span className="h-1.5 w-1.5 rounded-full bg-zinc-600" title="Zendesk (simulated)" />
             <button
-              onClick={() => generateMutation.mutate()}
+              onClick={() => { if (window.confirm('Replace all shared demo store records? This clears existing requests and history for every demo visitor.')) generateMutation.mutate(); }}
               disabled={generateMutation.isPending}
               className="p-1 rounded bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-400 mt-2 hover:text-zinc-200 transition-colors cursor-pointer"
               title="Seed Demo Store Data"

@@ -5,14 +5,10 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   ShoppingBag, 
   ShieldCheck, 
-  RotateCcw, 
-  Database, 
   ArrowRight, 
   Clock, 
   AlertCircle, 
   Shield, 
-  Activity, 
-  AlertTriangle,
   Flame,
   Package,
   Tag,
@@ -20,6 +16,7 @@ import {
   Zap
 } from 'lucide-react';
 import Link from 'next/link';
+import { summarizeOperations } from '@/lib/dashboard/summary';
 import { useWorkspace } from '@/components/Providers';
 
 interface DashboardData {
@@ -43,13 +40,14 @@ interface DashboardData {
 export default function DashboardPage() {
   const { setIsChatOpen, setChatInputPreset, setActiveChatId, chatList } = useWorkspace();
 
-  const { data, isLoading, error } = useQuery<DashboardData>({
+  const { data, isLoading, error, refetch } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
     queryFn: async () => {
       const res = await fetch('/api/dashboard');
       if (!res.ok) throw new Error('Failed to fetch dashboard metrics');
       return res.json();
     },
+    retry: false, // Polling and the explicit Retry control handle read recovery.
     refetchInterval: 3000, // Polling for fast demo updates!
   });
 
@@ -75,12 +73,14 @@ export default function DashboardPage() {
       <div className="p-8 flex flex-col items-center justify-center h-full text-zinc-400">
         <AlertCircle className="w-12 h-12 text-rose-500 mb-4" />
         <h3 className="text-lg font-semibold text-zinc-200">Error Loading Dashboard</h3>
-        <p className="text-sm text-zinc-500 mt-1">Make sure the PostgreSQL database is online.</p>
+        <p className="text-sm text-zinc-500 mt-1">We could not load the recorded store data. Please try again.</p>
+        <button onClick={() => void refetch()} className="mt-4 text-sm text-blue-400 underline underline-offset-4">Retry dashboard</button>
       </div>
     );
   }
 
   const { metrics, recentOrders, pendingApprovals } = data;
+  const summary = summarizeOperations(metrics);
 
   const handleRunCopilot = (prompt: string, flowSessionId?: string) => {
     if (flowSessionId) {
@@ -112,11 +112,11 @@ export default function DashboardPage() {
       icon: Clock,
       color: 'text-amber-400',
       badgeBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-      desc: 'Orders exceeding carrier SLA or delivery timelines.',
-      actionLabel: 'View delayed orders',
-      actionHref: '/refunds',
-      copilotPrompt: 'Why is order ORD-1022 delayed?',
-      copilotLabel: 'Investigate ORD-1022'
+      desc: 'Orders marked delayed in the recorded store data.',
+      actionLabel: 'Start shipment investigation',
+      actionHref: '/dashboard#demo-guide',
+      copilotPrompt: 'Which shipments are delayed? Show the order numbers and their recorded status.',
+      copilotLabel: 'Investigate delays'
     },
     {
       title: 'Low Stock Products',
@@ -157,7 +157,22 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-4 md:p-8 space-y-8 max-w-7xl mx-auto">
+      <section id="demo-guide" className="scroll-mt-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 space-y-3">
+        <h2 className="text-sm font-semibold text-blue-300">Guided demo: investigate, request, review, verify</h2>
+        <ol className="list-decimal pl-5 text-xs text-zinc-400 space-y-2">
+          <li>Ask which shipments are delayed and inspect the recorded orders.</li>
+          <li>Request a 30% demo discount. The configured 20% limit requires approval.</li>
+          <li>Open Approvals Queue to review the policy reasons and choose approve or reject.</li>
+          <li>Compare the decision with the execution result, then inspect Audit Logs.</li>
+        </ol>
+        <div className="flex flex-wrap gap-3">
+          <button onClick={() => handleRunCopilot('Which shipments are delayed? Show the order numbers and the recorded status.')} className="px-3 py-2 rounded-lg border border-blue-500/30 text-xs text-blue-300">Prepare shipment question</button>
+          <button onClick={() => handleRunCopilot(`Create a 30% discount code REVIEW30-${Date.now()} for manager review. Do not approve or execute it.`)} className="px-3 py-2 rounded-lg border border-blue-500/30 text-xs text-blue-300">Prepare discount request</button>
+          <Link href="/approvals" className="px-3 py-2 text-xs text-blue-300 underline">Open approval queue</Link>
+        </div>
+        <p className="text-xs text-zinc-500">These buttons prepare assistant input. Review it and choose Send to continue. Actions affect shared synthetic demo records; no real payments or vendor updates occur.</p>
+      </section>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -331,53 +346,11 @@ export default function DashboardPage() {
         {/* Right Area (Governance Hub - 1 col) */}
         <div className="space-y-6">
           
-          {/* System Health */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 shadow-sm space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2 pb-3 border-b border-zinc-800">
-              <Activity className="w-4 h-4 text-blue-400" />
-              <span>Operations Monitor</span>
-            </h3>
-
-            <div className="space-y-3.5 text-xs">
-              <div className="flex justify-between items-center p-2.5 rounded-lg bg-zinc-950/40 border border-zinc-800">
-                <span className="text-zinc-400 font-medium">Store Operations SLA:</span>
-                <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-[9px] uppercase tracking-wide">
-                  Normal (100%)
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-2.5 rounded-lg bg-zinc-950/40 border border-zinc-800">
-                <span className="text-zinc-400 font-medium">Operations Guardrails:</span>
-                <span className="text-zinc-300 font-semibold text-[10px] flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />
-                  ACTIVE MONITORING
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Active Risk Alerts */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 shadow-sm space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2 pb-3 border-b border-zinc-800">
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
-              <span>Active Operations Alerts</span>
-            </h3>
-
-            <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-lg border border-rose-500/20 bg-rose-500/5 text-rose-400 flex items-start gap-2.5 leading-relaxed">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
-                <div>
-                  <span className="font-bold text-zinc-200 block text-[10px]">High Customer Refund Rate</span>
-                  <span className="text-[10px] text-zinc-400 block mt-0.5">Alice Smith submitted 3 refunds in last 60 days. Returns velocity flagged.</span>
-                </div>
-              </div>
-              <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-400 flex items-start gap-2.5 leading-relaxed">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-                <div>
-                  <span className="font-bold text-zinc-200 block text-[10px]">Price Inconsistencies</span>
-                  <span className="text-[10px] text-zinc-400 block mt-0.5">Supplier CSV upload sheet contains variations on 4 catalog items.</span>
-                </div>
-              </div>
-            </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-zinc-300">Recorded operations overview</h3>
+            <p className="text-sm text-amber-400">{summary?.status ?? 'Overview unavailable'}</p>
+            <p className="text-xs text-zinc-400">Based on stored demo order, inventory, and approval counts. No production SLA or vendor service health is measured.</p>
+            <div className="space-y-3 text-xs">{summary?.alerts.map(alert => <Link key={alert.href} href={alert.href} className="block text-amber-400 underline underline-offset-4">{alert.count} {alert.label.toLowerCase()}</Link>)}</div>
           </div>
 
           {/* Governance Rules */}
